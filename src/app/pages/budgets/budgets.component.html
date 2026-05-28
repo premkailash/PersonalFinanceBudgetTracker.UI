@@ -1,0 +1,441 @@
+<!-- ══════════════════════════════════════════════════════════
+     BUDGETS PAGE
+     ══════════════════════════════════════════════════════════ -->
+
+<!-- Page header -->
+<div class="page-header">
+    <h1 class="page-title">Budgets</h1>
+    <p class="page-subtitle">Set monthly category budgets and track your spending in real time.</p>
+  </div>
+  
+  <!-- Toolbar: month nav + create button -->
+  <div class="page-toolbar">
+  
+    <!-- Month navigation -->
+    <div class="month-nav">
+      <button class="month-nav-btn" (click)="prevMonth()" title="Previous month">‹</button>
+      <span class="month-label">{{ currentMonthLabel }}</span>
+      <button class="month-nav-btn" (click)="nextMonth()" title="Next month">›</button>
+    </div>
+  
+    <span style="font-size:0.85rem;color:var(--clr-text-muted)">
+      {{ budgets.length }} budget{{ budgets.length !== 1 ? 's' : '' }}
+    </span>
+  
+    <button class="btn-create" (click)="openCreateModal()">
+      ＋&nbsp;Create Budget
+    </button>
+  
+  </div>
+  
+  <!-- List error -->
+  <div *ngIf="listError" class="alert alert-error" style="margin-bottom:18px">
+    {{ listError }}
+    <button (click)="loadBudgets()"
+            style="margin-left:10px;background:none;border:none;cursor:pointer;color:inherit;text-decoration:underline;font-size:0.8rem">
+      Retry
+    </button>
+  </div>
+  
+  <!-- ── Budgets table ── -->
+  <div class="data-table-wrap">
+  
+    <!-- Loading skeletons -->
+    <ng-container *ngIf="isListLoading">
+      <div *ngFor="let _ of [1,2,3,4,5]" class="table-row-skeleton">
+        <div class="skeleton" style="flex:1.2"></div>
+        <div class="skeleton" style="flex:1"></div>
+        <div class="skeleton" style="flex:1.2"></div>
+        <div class="skeleton" style="flex:1"></div>
+        <div class="skeleton" style="flex:2"></div>
+        <div class="skeleton" style="flex:0.8"></div>
+        <div class="skeleton" style="flex:1"></div>
+        <div class="skeleton" style="flex:0.7"></div>
+      </div>
+    </ng-container>
+  
+    <!-- Empty state -->
+    <div *ngIf="!isListLoading && budgets.length === 0 && !listError" class="table-empty">
+      <div class="table-empty-icon">💰</div>
+      <div class="table-empty-title">No budgets for {{ currentMonthLabel }}</div>
+      <div class="table-empty-text">Click "Create Budget" to set a category budget for this month.</div>
+    </div>
+  
+    <!-- Populated table -->
+    <table *ngIf="!isListLoading && budgets.length > 0" class="data-table">
+      <thead>
+        <tr>
+          <th>Account</th>
+          <th>Category</th>
+          <th>Budget Name</th>
+          <th class="right">Target</th>
+          <th>Utilisation</th>
+          <th class="right">Auto Contribute</th>
+          <th>Target Date</th>          
+          <th class="center">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let b of budgets">
+  
+          <!-- Account Name -->
+          <td style="font-size:0.85rem;color:var(--clr-text-muted);white-space:nowrap">
+            {{ b.accountName }}
+          </td>
+  
+          <!-- Category Name + type tag -->
+          <td>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <span style="font-weight:500;color:var(--clr-text)">{{ b.categoryName }}</span>
+              <span class="cat-tag"
+                    [ngClass]="catTypeClass(categoryById(b.categoryId)?.type || '')">
+                {{ categoryById(b.categoryId)?.type || '' }}
+              </span>
+            </div>
+          </td>
+  
+          <!-- Budget name -->
+          <td>
+            <span style="font-weight:600;color:var(--clr-text)">{{ b.name }}</span>
+          </td>
+  
+          <!-- Target -->
+          <td class="right">
+            <div class="amount-block">
+              <div class="amount-main">{{ formatCurrency(b.targetAmount) }}</div>
+              <div class="amount-sub">spent: {{ formatCurrency(b.currentAmount) }}</div>
+            </div>
+          </td>
+  
+          <!-- Utilisation bar + status -->
+          <td>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div class="budget-util-wrap">
+                <div class="budget-util-track">
+                  <div class="budget-util-fill"
+                       [style.width]="utilPct(b) + '%'"
+                       [style.background]="utilColor(utilPct(b))">
+                  </div>
+                </div>
+                <span class="budget-util-pct" [style.color]="utilColor(utilPct(b))">
+                  {{ utilPct(b) }}%
+                </span>
+              </div>
+              <span class="budget-status" [ngClass]="utilStatusClass(utilPct(b))">
+                {{ utilStatusLabel(utilPct(b)) }}
+              </span>
+            </div>
+          </td>
+  
+          <!-- Auto Contribute Amount -->
+          <td class="right">
+            <span *ngIf="b.autoContributeAmount > 0" class="auto-contrib-badge">
+              ⟳ {{ formatCurrency(b.autoContributeAmount) }}
+            </span>
+            <span *ngIf="b.autoContributeAmount === 0" style="color:var(--clr-text-subtle);font-size:0.8rem">—</span>
+          </td>
+  
+          <!-- Target Date -->
+          <td style="color:var(--clr-text-muted);font-size:0.85rem;white-space:nowrap">
+            {{ formatDate(b.targetDate) }}
+          </td>
+        
+          <!-- Actions -->
+          <td class="center">
+            <div class="row-actions">
+              <button class="icon-btn edit" title="Edit budget" (click)="openEditModal(b)">✏️</button>
+              <button class="icon-btn delete" title="Delete budget" (click)="openDeleteModal(b)">🗑️</button>
+            </div>
+          </td>
+  
+        </tr>
+      </tbody>
+    </table>
+  
+  </div>
+  
+  
+  <!-- ══════════════════════════════════════════════════════════
+       MODAL: CREATE BUDGET
+       ══════════════════════════════════════════════════════════ -->
+  <div *ngIf="modalMode === 'create'" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-box" (click)="$event.stopPropagation()" style="max-width:520px">
+  
+      <div class="modal-header">
+        <span class="modal-title">💰 Create Budget</span>
+        <button class="modal-close" (click)="closeModal()">✕</button>
+      </div>
+  
+      <div class="modal-body">
+  
+        <div *ngIf="modalAlert" class="modal-alert" [ngClass]="modalAlertType">
+          {{ modalAlert }}
+        </div>
+  
+        <!-- Account dropdown -->
+        <div class="field-group">
+          <label class="field-label">Account <span class="req">*</span></label>
+          <select class="field-select"
+                  [class.invalid]="acctInvalid"
+                  [(ngModel)]="form.accountId">
+            <option [ngValue]="null" disabled>
+              {{ isAcctLoading ? 'Loading accounts…' : 'Select account' }}
+            </option>
+            <option *ngFor="let a of accounts" [ngValue]="a.accountId">
+              {{ a.accountName }} ({{ a.accountType }})
+            </option>
+          </select>
+          <div *ngIf="acctInvalid" class="field-error">Please select an account.</div>
+        </div>
+  
+        <!-- Category dropdown -->
+        <div class="field-group">
+          <label class="field-label">Category <span class="req">*</span></label>
+          <select class="field-select"
+                  [class.invalid]="catInvalid"
+                  [(ngModel)]="form.categoryId">
+            <option [ngValue]="null" disabled>
+              {{ isCatLoading ? 'Loading categories…' : 'Select category' }}
+            </option>
+            <optgroup *ngFor="let type of ['Expense','Income']" [label]="type">
+              <option *ngFor="let c of categories | catFilter:type"
+                      [ngValue]="c.categoryId">
+                {{ c.name }}
+              </option>
+            </optgroup>
+          </select>
+          <div *ngIf="catInvalid" class="field-error">Please select a category.</div>
+        </div>
+  
+        <!-- Name -->
+        <div class="field-group">
+          <label class="field-label">Budget Name <span class="req">*</span></label>
+          <input class="field-input"
+                 [class.invalid]="nameInvalid"
+                 type="text"
+                 [(ngModel)]="form.name"
+                 placeholder="e.g. Monthly Food Budget"
+                 maxlength="100">
+          <div *ngIf="nameInvalid" class="field-error">Budget name is required.</div>
+        </div>
+  
+        <!-- Two-column: Target + Current -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+  
+          <div class="field-group">
+            <label class="field-label">Target Amount <span class="req">*</span></label>
+            <input class="field-input"
+                   [class.invalid]="targetAmtInvalid"
+                   type="text"
+                   inputmode="decimal"
+                   [(ngModel)]="form.targetAmount"
+                   placeholder="e.g. 10000"
+                   (keydown)="onAmountKeydown($event)">
+            <div *ngIf="targetAmtInvalid" class="field-error">Must be greater than zero.</div>
+          </div>
+  
+          <div class="field-group">
+            <label class="field-label">Current Amount</label>
+            <input class="field-input"
+                   [class.invalid]="currentAmtInvalid"
+                   type="text"
+                   inputmode="decimal"
+                   [(ngModel)]="form.currentAmount"
+                   placeholder="0"
+                   (keydown)="onAmountKeydown($event)">
+            <div *ngIf="currentAmtInvalid" class="field-error">Must be ≥ 0.</div>
+          </div>
+  
+        </div>
+  
+        <!-- Two-column: Target Date + Auto Contribute -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+  
+          <div class="field-group">
+            <label class="field-label">Target Date <span class="req">*</span></label>
+            <input class="field-input"
+                   [class.invalid]="dateInvalid"
+                   type="date"
+                   [(ngModel)]="form.targetDate"
+                   [min]="todayISO()">
+            <div *ngIf="dateInvalid" class="field-error">Please select a date.</div>
+          </div>
+  
+          <div class="field-group">
+            <label class="field-label">Auto Contribute Amount</label>
+            <input class="field-input"
+                   [class.invalid]="autoContribInvalid"
+                   type="text"
+                   inputmode="decimal"
+                   [(ngModel)]="form.autoContributeAmount"
+                   placeholder="0"
+                   (keydown)="onAmountKeydown($event)">
+            <div *ngIf="autoContribInvalid" class="field-error">Must be ≥ 0.</div>
+          </div>
+  
+        </div>
+  
+      </div>
+  
+      <div class="modal-footer">
+        <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">Cancel</button>
+        <button class="btn-modal-primary" (click)="onCreateSave()" [disabled]="isSubmitting">
+          <span *ngIf="isSubmitting" class="spin"></span>
+          {{ isSubmitting ? 'Creating…' : 'Create Budget' }}
+        </button>
+      </div>
+  
+    </div>
+  </div>
+  
+  
+  <!-- ══════════════════════════════════════════════════════════
+       MODAL: EDIT BUDGET
+       ══════════════════════════════════════════════════════════ -->
+  <div *ngIf="modalMode === 'edit'" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-box" (click)="$event.stopPropagation()" style="max-width:520px">
+  
+      <div class="modal-header">
+        <span class="modal-title">✏️ Edit Budget</span>
+        <button class="modal-close" (click)="closeModal()">✕</button>
+      </div>
+  
+      <div class="modal-body">
+  
+        <!-- Loading spinner while fetching -->
+        <div *ngIf="isSubmitting && !modalAlert"
+             style="display:flex;align-items:center;gap:10px;padding:12px 0;color:var(--clr-text-muted);font-size:0.875rem">
+          <span class="spin"></span> Loading budget details…
+        </div>
+  
+        <div *ngIf="modalAlert" class="modal-alert" [ngClass]="modalAlertType">{{ modalAlert }}</div>
+  
+        <ng-container *ngIf="!isSubmitting || modalAlert">
+  
+          <!-- Account — read-only -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="field-group">
+              <label class="field-label">Account</label>
+              <input class="field-input" type="text"
+                     [value]="accounts | accountName:(form.accountId || 0)"
+                     readonly
+                     style="opacity:0.6;cursor:not-allowed;background:var(--clr-surface-2)">
+            </div>
+            <!-- Category — read-only -->
+            <div class="field-group">
+              <label class="field-label">Category</label>
+              <input class="field-input" type="text"
+                     [value]="categoryById(form.categoryId || 0)?.name || '—'"
+                     readonly
+                     style="opacity:0.6;cursor:not-allowed;background:var(--clr-surface-2)">
+            </div>
+          </div>
+          <div style="font-size:0.72rem;color:var(--clr-text-subtle);margin:-10px 0 16px">
+            Account and Category cannot be changed after creation.
+          </div>
+  
+          <!-- Name -->
+          <div class="field-group">
+            <label class="field-label">Budget Name <span class="req">*</span></label>
+            <input class="field-input"
+                   [class.invalid]="nameInvalid"
+                   type="text"
+                   [(ngModel)]="form.name"
+                   placeholder="Budget name"
+                   maxlength="100">
+            <div *ngIf="nameInvalid" class="field-error">Budget name is required.</div>
+          </div>
+  
+          <!-- Two-column: Target + Current -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="field-group">
+              <label class="field-label">Target Amount <span class="req">*</span></label>
+              <input class="field-input" [class.invalid]="targetAmtInvalid"
+                     type="text" inputmode="decimal"
+                     [(ngModel)]="form.targetAmount" placeholder="0"
+                     (keydown)="onAmountKeydown($event)">
+              <div *ngIf="targetAmtInvalid" class="field-error">Must be greater than zero.</div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Current Amount</label>
+              <input class="field-input" [class.invalid]="currentAmtInvalid"
+                     type="text" inputmode="decimal"
+                     [(ngModel)]="form.currentAmount" placeholder="0"
+                     (keydown)="onAmountKeydown($event)">
+              <div *ngIf="currentAmtInvalid" class="field-error">Must be ≥ 0.</div>
+            </div>
+          </div>
+  
+          <!-- Two-column: Date + Auto Contribute -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="field-group">
+              <label class="field-label">Target Date <span class="req">*</span></label>
+              <input class="field-input" [class.invalid]="dateInvalid"
+                     type="date" [(ngModel)]="form.targetDate">
+              <div *ngIf="dateInvalid" class="field-error">Please select a date.</div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Auto Contribute Amount</label>
+              <input class="field-input" [class.invalid]="autoContribInvalid"
+                     type="text" inputmode="decimal"
+                     [(ngModel)]="form.autoContributeAmount" placeholder="0"
+                     (keydown)="onAmountKeydown($event)">
+              <div *ngIf="autoContribInvalid" class="field-error">Must be ≥ 0.</div>
+            </div>
+          </div>
+  
+        </ng-container>
+      </div>
+  
+      <div class="modal-footer">
+        <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">Cancel</button>
+        <button class="btn-modal-primary" (click)="onEditSave()" [disabled]="isSubmitting">
+          <span *ngIf="isSubmitting" class="spin"></span>
+          {{ isSubmitting ? 'Saving…' : 'Save Changes' }}
+        </button>
+      </div>
+  
+    </div>
+  </div>
+  
+  
+  <!-- ══════════════════════════════════════════════════════════
+       MODAL: DELETE CONFIRMATION
+       ══════════════════════════════════════════════════════════ -->
+  <div *ngIf="modalMode === 'delete'" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-box modal-sm" (click)="$event.stopPropagation()">
+  
+      <div class="modal-header">
+        <span class="modal-title">Delete Budget</span>
+        <button class="modal-close" (click)="closeModal()">✕</button>
+      </div>
+  
+      <div *ngIf="modalAlert" style="padding:0 24px">
+        <div class="modal-alert" [ngClass]="modalAlertType">{{ modalAlert }}</div>
+      </div>
+  
+      <div *ngIf="!modalAlert" class="delete-confirm-body">
+        <div class="delete-icon">💰</div>
+        <div class="delete-title">Delete this budget?</div>
+        <p class="delete-text">
+          You are about to permanently delete the budget
+          <span class="delete-account-name">{{ deleteTarget?.name }}</span>
+          for category <span class="delete-account-name">{{ deleteTarget?.categoryName }}</span>.
+          This action cannot be undone.
+        </p>
+      </div>
+  
+      <div class="modal-footer">
+        <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">
+          {{ modalAlert && modalAlertType === 'success' ? 'Close' : 'Cancel' }}
+        </button>
+        <button *ngIf="!modalAlert || modalAlertType === 'error'"
+                class="btn-modal-danger" (click)="onDeleteConfirm()" [disabled]="isSubmitting">
+          <span *ngIf="isSubmitting" class="spin spin-light"></span>
+          {{ isSubmitting ? 'Deleting…' : 'Yes, Delete' }}
+        </button>
+      </div>
+  
+    </div>
+  </div>
+  

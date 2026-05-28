@@ -1,0 +1,159 @@
+<div class="auth-page">
+
+    <!-- ── Left decorative panel ── -->
+    <aside class="auth-panel-left">
+      <div class="panel-logo">
+        <div class="panel-logo-icon">💰</div>
+        <span class="panel-logo-text">Personal Finance Budget Tracker</span>
+      </div>
+  
+      <div class="panel-hero">
+        <h1>
+          Your money.<br>
+          Your <em>clarity</em>.
+        </h1>
+        <p>
+          Sign in to access your personalised dashboard, track
+          budgets, manage savings goals, and review all your
+          transactions in one place.
+        </p>
+      </div>
+  
+      <div class="panel-stats">
+        <div class="stat-card">
+          <div class="stat-value">9+</div>
+          <div class="stat-label">Finance modules</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">256-bit</div>
+          <div class="stat-label">Encryption</div>
+        </div>
+      </div>
+    </aside>
+  
+    <!-- ── Right form panel ── -->
+    <section class="auth-panel-right">
+      <div class="auth-card">
+  
+        <!-- Header — Sign Up link is in the top-right corner as specified -->
+        <div class="auth-header">
+          <div class="auth-header-top">
+            <h1 class="auth-title">Welcome back</h1>
+            <span class="auth-link-header">
+              New here?&nbsp;
+              <a routerLink="/signup">Sign up</a>
+            </span>
+          </div>
+          <p class="auth-subtitle">Sign in to continue to your dashboard.</p>
+        </div>
+  
+        <!-- Alert -->
+        @if (alertMessage) {
+          <div class="alert" [ngClass]="'alert-' + alertType" role="alert" aria-live="polite">
+            {{ alertMessage }}
+          </div>
+        }
+  
+        <!-- Form -->
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate autocomplete="on">
+  
+          <!-- Email -->
+          <div class="form-group">
+            <label class="form-label" for="login-email">
+              Email address <span class="required">*</span>
+            </label>
+            <input
+              id="login-email"
+              type="email"
+              class="form-control"
+              [class.is-invalid]="email.invalid && email.touched"
+              formControlName="email"
+              placeholder="you@example.com"
+              maxlength="100"
+              autocomplete="email"
+            >
+            @if (email.touched && email.errors) {
+              <div class="form-error">
+                @if (email.errors['required']) { Email address is required. }
+                @if (email.errors['email'])    { Please enter a valid email address. }
+                @if (email.errors['maxlength']) { Maximum 100 characters allowed. }
+              </div>
+            }
+          </div>
+  
+          <!-- Password -->
+          <div class="form-group">
+            <label class="form-label" for="login-password">
+              Password <span class="required">*</span>
+            </label>
+            <div class="password-wrapper">
+              <input
+                id="login-password"
+                [type]="showPassword ? 'text' : 'password'"
+                class="form-control"
+                [class.is-invalid]="password.invalid && password.touched"
+                formControlName="password"
+                placeholder="Enter your password"
+                autocomplete="current-password"
+              >
+              <button
+                type="button"
+                class="password-toggle"
+                (click)="togglePassword()"
+                [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+              >
+                {{ showPassword ? '🙈' : '👁' }}
+              </button>
+            </div>
+  
+            @if (password.touched && password.errors) {
+              <div class="form-error">
+                @if (password.errors['required'])    { Password is required. }
+                @if (password.errors['minlength'])   { Minimum 8 characters required. }
+                @if (password.errors['noUppercase']) { Must include an uppercase letter. }
+                @if (password.errors['noLowercase']) { Must include a lowercase letter. }
+                @if (password.errors['noNumber'])    { Must include a number. }
+                @if (password.errors['noSpecial'])   { Must include a special character (!&#64;#$...). }
+              </div>
+            }
+          </div>
+  
+          <!-- Buttons -->
+          <div class="btn-row">
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="isLoading"
+            >
+              @if (isLoading) {
+                <span class="btn-spinner"></span>
+                Signing in…
+              } @else {
+                Sign in
+              }
+            </button>
+  
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="onClear()"
+              [disabled]="isLoading"
+            >
+              Clear
+            </button>
+          </div>
+  
+        </form>
+  
+        <!-- Bottom registration nudge -->
+        <div class="auth-divider">or</div>
+        <p style="text-align:center; font-size:0.875rem; color:var(--clr-text-muted)">
+          Don't have an account?
+          <a routerLink="/signup" style="font-weight:600">Create one free →</a>
+        </p>
+  
+      </div>
+    </section>
+  
+  </div>
+  

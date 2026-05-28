@@ -1,0 +1,349 @@
+<!-- ══════════════════════════════════════════════════════════
+     ACCOUNTS PAGE
+     ══════════════════════════════════════════════════════════ -->
+
+<!-- Page header + toolbar -->
+<div class="page-header">
+    <h1 class="page-title">Accounts</h1>
+    <p class="page-subtitle">Manage your linked bank accounts, wallets, and credit cards.</p>
+  </div>
+  
+  <div class="page-toolbar">
+    <span style="font-size:0.85rem;color:var(--clr-text-muted)">
+      {{ accounts.length }} account{{ accounts.length !== 1 ? 's' : '' }} linked
+    </span>
+    <button class="btn-create" (click)="openCreateModal()">
+      ＋&nbsp;Create Account
+    </button>
+  </div>
+  
+  <!-- List error -->
+  <div *ngIf="listError" class="alert alert-error" style="margin-bottom:18px">
+    {{ listError }}
+    <button (click)="loadAccounts()"
+            style="margin-left:10px;background:none;border:none;cursor:pointer;color:inherit;text-decoration:underline;font-size:0.8rem">
+      Retry
+    </button>
+  </div>
+  
+  <!-- ── Accounts table ── -->
+  <div class="data-table-wrap">
+  
+    <!-- Loading skeletons -->
+    <ng-container *ngIf="isListLoading">
+      <div *ngFor="let _ of [1,2,3,4,5]" class="table-row-skeleton">
+        <div class="skeleton" style="flex:2"></div>
+        <div class="skeleton" style="flex:1"></div>
+        <div class="skeleton" style="flex:0.7"></div>
+        <div class="skeleton" style="flex:1"></div>
+        <div class="skeleton" style="flex:1"></div>
+        <div class="skeleton" style="flex:0.8"></div>
+      </div>
+    </ng-container>
+  
+    <!-- Empty state -->
+    <div *ngIf="!isListLoading && accounts.length === 0 && !listError"
+         class="table-empty">
+      <div class="table-empty-icon">🏦</div>
+      <div class="table-empty-title">No accounts linked yet</div>
+      <div class="table-empty-text">Click "Create Account" to link your first account.</div>
+    </div>
+  
+    <!-- Populated table -->
+    <table *ngIf="!isListLoading && accounts.length > 0" class="data-table">
+      <thead>
+        <tr>
+          <th>Account Name</th>
+          <th>Account Type</th>
+          <th>Currency</th>
+          <th class="right">Balance</th>
+          <th>Linked On</th>
+          <th class="center">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let acc of accounts">
+  
+          <!-- Account Name -->
+          <td>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:1.1rem;line-height:1">{{ typeIcon(acc.accountType) }}</span>
+              <span style="font-weight:500;color:var(--clr-text)">{{ acc.accountName }}</span>
+            </div>
+          </td>
+  
+          <!-- Account Type badge -->
+          <td>
+            <span class="type-badge" [ngClass]="typeBadgeClass(acc.accountType)">
+              {{ acc.accountType }}
+            </span>
+          </td>
+  
+          <!-- Currency -->
+          <td>
+            <span style="font-size:0.8rem;font-weight:600;color:var(--clr-text-muted)">
+              {{ acc.currency }}
+            </span>
+          </td>
+  
+          <!-- Balance -->
+          <td class="right">
+            <span [ngClass]="acc.balance >= 0 ? 'balance-positive' : 'balance-negative'">
+              {{ formatBalance(acc.balance, acc.currency) }}
+            </span>
+          </td>
+  
+          <!-- Linked date -->
+          <td style="color:var(--clr-text-muted);font-size:0.85rem">
+            {{ formatDate(acc.linkedAt) }}
+          </td>
+  
+          <!-- Actions -->
+          <td class="center">
+            <div class="row-actions">
+              <button class="icon-btn edit"
+                      title="Edit account"
+                      (click)="openEditModal(acc)">
+                ✏️
+              </button>
+              <button class="icon-btn delete"
+                      title="Delete account"
+                      (click)="openDeleteModal(acc)">
+                🗑️
+              </button>
+            </div>
+          </td>
+  
+        </tr>
+      </tbody>
+    </table>
+  
+  </div>
+  
+  
+  <!-- ══════════════════════════════════════════════════════════
+       MODAL: CREATE ACCOUNT
+       ══════════════════════════════════════════════════════════ -->
+  <div *ngIf="modalMode === 'create'" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-box" (click)="$event.stopPropagation()">
+  
+      <div class="modal-header">
+        <span class="modal-title">🏦 Create Account</span>
+        <button class="modal-close" (click)="closeModal()">✕</button>
+      </div>
+  
+      <div class="modal-body">
+  
+        <!-- Alert from API -->
+        <div *ngIf="modalAlert"
+             class="modal-alert"
+             [ngClass]="modalAlertType">
+          {{ modalAlert }}
+        </div>
+  
+        <!-- Account Name -->
+        <div class="field-group">
+          <label class="field-label">Account Name <span class="req">*</span></label>
+          <input class="field-input"
+                 [class.invalid]="nameInvalid"
+                 type="text"
+                 [(ngModel)]="form.accountName"
+                 placeholder="e.g. HDFC Savings Account"
+                 maxlength="100">
+          <div *ngIf="nameInvalid" class="field-error">Account name is required.</div>
+        </div>
+  
+        <!-- Account Type -->
+        <div class="field-group">
+          <label class="field-label">Account Type <span class="req">*</span></label>
+          <select class="field-select"
+                  [class.invalid]="typeInvalid"
+                  [(ngModel)]="form.accountType">
+            <option value="" disabled>Select type</option>
+            <option *ngFor="let t of accountTypes" [value]="t">{{ t }}</option>
+          </select>
+          <div *ngIf="typeInvalid" class="field-error">Please select an account type.</div>
+        </div>
+  
+        <!-- Currency -->
+        <div class="field-group">
+          <label class="field-label">Currency <span class="req">*</span></label>
+          <select class="field-select"
+                  [class.invalid]="currencyInvalid"
+                  [(ngModel)]="form.currency">
+            <option *ngFor="let c of currencies" [value]="c">{{ c }}</option>
+          </select>
+          <div *ngIf="currencyInvalid" class="field-error">Please select a currency.</div>
+        </div>
+  
+        <!-- Balance -->
+        <div class="field-group">
+          <label class="field-label">Opening Balance <span class="req">*</span></label>
+          <input class="field-input"
+                 [class.invalid]="balanceInvalid"
+                 type="text"
+                 inputmode="decimal"
+                 [(ngModel)]="form.balance"
+                 placeholder="0.00"
+                 (keydown)="onBalanceKeydown($event)">
+          <div *ngIf="balanceInvalid" class="field-error">
+            Please enter a valid balance (numbers and decimal point only, must be ≥ 0).
+          </div>
+        </div>
+  
+      </div>
+  
+      <div class="modal-footer">
+        <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">
+          Cancel
+        </button>
+        <button class="btn-modal-primary" (click)="onCreateSave()" [disabled]="isSubmitting">
+          <span *ngIf="isSubmitting" class="spin"></span>
+          {{ isSubmitting ? 'Saving…' : 'Create Account' }}
+        </button>
+      </div>
+  
+    </div>
+  </div>
+  
+  
+  <!-- ══════════════════════════════════════════════════════════
+       MODAL: EDIT ACCOUNT
+       ══════════════════════════════════════════════════════════ -->
+  <div *ngIf="modalMode === 'edit'" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-box" (click)="$event.stopPropagation()">
+  
+      <div class="modal-header">
+        <span class="modal-title">✏️ Edit Account</span>
+        <button class="modal-close" (click)="closeModal()">✕</button>
+      </div>
+  
+      <div class="modal-body">
+  
+        <!-- Loading existing data -->
+        <div *ngIf="isSubmitting && !modalAlert"
+             style="display:flex;align-items:center;gap:10px;padding:16px 0;color:var(--clr-text-muted);font-size:0.875rem">
+          <span class="spin"></span> Loading account details…
+        </div>
+  
+        <!-- Alert from API -->
+        <div *ngIf="modalAlert"
+             class="modal-alert"
+             [ngClass]="modalAlertType">
+          {{ modalAlert }}
+        </div>
+  
+        <!-- Form (shown once data loaded) -->
+        <ng-container *ngIf="!isSubmitting || modalAlert">
+  
+          <!-- Account Name -->
+          <div class="field-group">
+            <label class="field-label">Account Name <span class="req">*</span></label>
+            <input class="field-input"
+                   [class.invalid]="nameInvalid"
+                   type="text"
+                   [(ngModel)]="form.accountName"
+                   placeholder="Account name"
+                   maxlength="100">
+            <div *ngIf="nameInvalid" class="field-error">Account name is required.</div>
+          </div>
+  
+          <!-- Account Type -->
+          <div class="field-group">
+            <label class="field-label">Account Type <span class="req">*</span></label>
+            <select class="field-select"
+                    [class.invalid]="typeInvalid"
+                    [(ngModel)]="form.accountType">
+              <option *ngFor="let t of accountTypes" [value]="t">{{ t }}</option>
+            </select>
+            <div *ngIf="typeInvalid" class="field-error">Please select an account type.</div>
+          </div>
+  
+          <!-- Currency -->
+          <div class="field-group">
+            <label class="field-label">Currency <span class="req">*</span></label>
+            <select class="field-select"
+                    [class.invalid]="currencyInvalid"
+                    [(ngModel)]="form.currency">
+              <option *ngFor="let c of currencies" [value]="c">{{ c }}</option>
+            </select>
+            <div *ngIf="currencyInvalid" class="field-error">Please select a currency.</div>
+          </div>
+  
+          <!-- Balance -->
+          <div class="field-group">
+            <label class="field-label">Balance <span class="req">*</span></label>
+            <input class="field-input"
+                   [class.invalid]="balanceInvalid"
+                   type="text"
+                   inputmode="decimal"
+                   [(ngModel)]="form.balance"
+                   placeholder="0.00"
+                   (keydown)="onBalanceKeydown($event)">
+            <div *ngIf="balanceInvalid" class="field-error">
+              Please enter a valid balance (must be ≥ 0).
+            </div>
+          </div>
+  
+        </ng-container>
+  
+      </div>
+  
+      <div class="modal-footer">
+        <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">
+          Cancel
+        </button>
+        <button class="btn-modal-primary"
+                (click)="onEditSave()"
+                [disabled]="isSubmitting">
+          <span *ngIf="isSubmitting" class="spin"></span>
+          {{ isSubmitting ? 'Saving…' : 'Save Changes' }}
+        </button>
+      </div>
+  
+    </div>
+  </div>
+  
+  
+  <!-- ══════════════════════════════════════════════════════════
+       MODAL: DELETE CONFIRMATION
+       ══════════════════════════════════════════════════════════ -->
+  <div *ngIf="modalMode === 'delete'" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-box modal-sm" (click)="$event.stopPropagation()">
+  
+      <div class="modal-header">
+        <span class="modal-title">Delete Account</span>
+        <button class="modal-close" (click)="closeModal()">✕</button>
+      </div>
+  
+      <!-- Alert after API call -->
+      <div *ngIf="modalAlert" style="padding:0 24px">
+        <div class="modal-alert" [ngClass]="modalAlertType">{{ modalAlert }}</div>
+      </div>
+  
+      <div *ngIf="!modalAlert" class="delete-confirm-body">
+        <div class="delete-icon">🗑️</div>
+        <div class="delete-title">Delete this account?</div>
+        <p class="delete-text">
+          You are about to permanently unlink
+          <span class="delete-account-name">{{ deleteTarget?.accountName }}</span>.
+          This action cannot be undone. All linked transactions and budgets may be affected.
+        </p>
+      </div>
+  
+      <div class="modal-footer">
+        <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">
+          {{ modalAlert && modalAlertType === 'success' ? 'Close' : 'Cancel' }}
+        </button>
+        <button *ngIf="!modalAlert || modalAlertType === 'error'"
+                class="btn-modal-danger"
+                (click)="onDeleteConfirm()"
+                [disabled]="isSubmitting">
+          <span *ngIf="isSubmitting" class="spin spin-light"></span>
+          {{ isSubmitting ? 'Deleting…' : 'Yes, Delete' }}
+        </button>
+      </div>
+  
+    </div>
+  </div>
+  

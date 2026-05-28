@@ -1,0 +1,482 @@
+<!-- ══════════════════════════════════════════════════════════
+     TRANSACTIONS PAGE
+     ══════════════════════════════════════════════════════════ -->
+
+<!-- Page header -->
+<div class="page-header">
+    <h1 class="page-title">Transactions</h1>
+    <p class="page-subtitle">Search, filter and manage all your income and expense entries.</p>
+  </div>
+  
+  <!-- Toolbar -->
+  <div class="page-toolbar">
+    <span *ngIf="hasSearched" style="font-size:0.85rem;color:var(--clr-text-muted)">
+      {{ filteredTransactions.length }} result{{ filteredTransactions.length !== 1 ? 's' : '' }}
+    </span>
+    <span *ngIf="!hasSearched"></span>
+    <button class="btn-create" (click)="openCreateModal()">＋&nbsp;Add Transaction</button>
+  </div>
+  
+  <!-- ── Filter bar ── -->
+  <div class="filter-bar">
+  
+    <!-- Account selector -->
+    <div class="filter-field">
+      <span class="filter-label">Account *</span>
+      <select class="field-select"
+              [class.invalid]="!filter.accountId && hasSearched"
+              [(ngModel)]="filter.accountId">
+        <option [ngValue]="null" disabled>
+          {{ isAcctLoading ? 'Loading…' : 'Select account' }}
+        </option>
+        <option *ngFor="let a of accounts" [ngValue]="a.accountId">
+          {{ a.accountName }} ({{ a.accountType }})
+        </option>
+      </select>
+      <div *ngIf="!filter.accountId && hasSearched" class="field-error">Please select an account.</div>
+    </div>
+  
+    <!-- From date -->
+    <div class="filter-field">
+      <span class="filter-label">From Date</span>
+      <input class="field-input" type="date" [(ngModel)]="filter.fromDate">
+    </div>
+  
+    <!-- To date -->
+    <div class="filter-field">
+      <span class="filter-label">To Date</span>
+      <input class="field-input" type="date" [(ngModel)]="filter.toDate"
+             [min]="filter.fromDate">
+    </div>
+  
+    <!-- Search button -->
+    <div class="filter-field">
+      <span class="filter-label">&nbsp;</span>
+      <button class="btn-modal-primary" (click)="onSearch()" [disabled]="isListLoading"
+              style="height:42px;width:100%;font-size:0.875rem">
+        <span *ngIf="isListLoading" class="spin"></span>
+        {{ isListLoading ? 'Searching…' : '🔍 Search' }}
+      </button>
+    </div>
+  
+  </div>
+  
+  <!-- List error -->
+  <div *ngIf="listError" class="alert alert-error" style="margin-bottom:16px">
+    {{ listError }}
+    <button (click)="onSearch()"
+            style="margin-left:10px;background:none;border:none;cursor:pointer;color:inherit;text-decoration:underline;font-size:0.8rem">
+      Retry
+    </button>
+  </div>
+  
+  <!-- ── Search + results row (shown once searched) ── -->
+  <div *ngIf="hasSearched" class="search-row">
+  
+    <div class="search-input-wrap">
+      <span class="search-icon">🔎</span>
+      <input class="search-input"
+             type="text"
+             [(ngModel)]="filter.search"
+             (ngModelChange)="onSearchInput()"
+             placeholder="Filter by description, category or type…">
+      <button *ngIf="filter.search" class="search-clear" (click)="clearSearch()">✕</button>
+    </div>
+  
+    <span class="results-badge">
+      Showing {{ startRecord }}–{{ endRecord }} of {{ filteredTransactions.length }}
+    </span>
+  
+    <!-- Page size -->
+    <select class="page-size-select" [(ngModel)]="pageSize" (ngModelChange)="onPageSizeChange()">
+      <option *ngFor="let s of pageSizes" [value]="s">{{ s }} / page</option>
+    </select>
+  
+  </div>
+  
+  <!-- ══════════════════════════════════════════════
+       TABLE
+       ══════════════════════════════════════════════ -->
+  <div *ngIf="hasSearched" class="data-table-wrap">
+  
+    <!-- Loading skeletons -->
+    <ng-container *ngIf="isListLoading">
+      <div *ngFor="let _ of [1,2,3,4,5,6]" class="table-row-skeleton">
+        <div class="skeleton" style="flex:1.2"></div>
+        <div class="skeleton" style="flex:0.7"></div>
+        <div class="skeleton" style="flex:1.5"></div>
+        <div class="skeleton" style="flex:0.6"></div>
+        <div class="skeleton" style="flex:0.9"></div>
+        <div class="skeleton" style="flex:0.9"></div>
+        <div class="skeleton" style="flex:0.7"></div>
+      </div>
+    </ng-container>
+  
+    <!-- Empty state -->
+    <div *ngIf="!isListLoading && filteredTransactions.length === 0 && !listError" class="table-empty">
+      <div class="table-empty-icon">🧾</div>
+      <div class="table-empty-title">No transactions found</div>
+      <div class="table-empty-text">
+        {{ filter.search ? 'No results match your search. Try clearing the filter.' : 'No transactions in the selected date range for this account.' }}
+      </div>
+    </div>
+  
+    <!-- Table -->
+    <table *ngIf="!isListLoading && pageTransactions.length > 0" class="data-table">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Currency</th>
+          <th class="right">Amount</th>
+          <th>Date</th>
+          <th class="center">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let tx of pageTransactions">
+  
+          <!-- Category -->
+          <td>
+            <div style="font-weight:500;color:var(--clr-text)">{{ tx.categoryName }}</div>
+            <div *ngIf="tx.isRecurring">
+              <span class="recurring-badge">⟳ Recurring</span>
+            </div>
+          </td>
+  
+          <!-- Type badge -->
+          <td>
+            <span class="tx-type" [ngClass]="typeClass(tx.type)">
+              {{ tx.type === 'Income' ? '▲' : '▼' }}&nbsp;{{ tx.type }}
+            </span>
+          </td>
+  
+          <!-- Description -->
+          <td style="max-width:200px">
+            <span style="font-size:0.875rem;color:var(--clr-text-muted)"
+                  [title]="tx.description || ''">
+              {{ tx.description || '—' }}
+            </span>
+          </td>
+  
+          <!-- Currency -->
+          <td>
+            <span style="font-size:0.8rem;font-weight:600;color:var(--clr-text-subtle)">
+              {{ tx.currency }}
+            </span>
+          </td>
+  
+          <!-- Amount -->
+          <td class="right">
+            <span [ngClass]="tx.type === 'Income' ? 'amount-income' : 'amount-expense'">
+              {{ tx.type === 'Income' ? '+' : '−' }}{{ formatAmount(tx.amount, tx.currency) }}
+            </span>
+          </td>
+  
+          <!-- Transaction Date -->
+          <td style="color:var(--clr-text-muted);font-size:0.85rem;white-space:nowrap">
+            {{ formatDate(tx.transactionDate) }}
+          </td>
+  
+          <!-- Actions -->
+          <td class="center">
+            <div class="row-actions">
+              <button class="icon-btn edit"   title="Edit"   (click)="openEditModal(tx)">✏️</button>
+              <button class="icon-btn delete" title="Delete" (click)="openDeleteModal(tx)">🗑️</button>
+            </div>
+          </td>
+  
+        </tr>
+      </tbody>
+    </table>
+  
+    <!-- ── Pagination bar ── -->
+    <div *ngIf="!isListLoading && filteredTransactions.length > 0" class="pagination-bar">
+  
+      <span class="page-info">
+        Page {{ currentPage }} of {{ totalPages }}
+        &nbsp;·&nbsp; {{ filteredTransactions.length }} total
+      </span>
+  
+      <div class="page-controls">
+  
+        <!-- First + Prev -->
+        <button class="page-btn" (click)="goToPage(1)" [disabled]="currentPage === 1" title="First">«</button>
+        <button class="page-btn" (click)="goToPage(currentPage - 1)" [disabled]="currentPage === 1" title="Previous">‹</button>
+  
+        <!-- Ellipsis before -->
+        <span *ngIf="pageNumbers[0] > 2"
+              style="color:var(--clr-text-subtle);padding:0 4px;font-size:0.8rem">…</span>
+  
+        <!-- Page numbers (window of 5) -->
+        <button *ngFor="let p of pageNumbers"
+                class="page-btn"
+                [class.active]="p === currentPage"
+                (click)="goToPage(p)">
+          {{ p }}
+        </button>
+  
+        <!-- Ellipsis after -->
+        <span *ngIf="pageNumbers[pageNumbers.length - 1] < totalPages - 1"
+              style="color:var(--clr-text-subtle);padding:0 4px;font-size:0.8rem">…</span>
+  
+        <!-- Next + Last -->
+        <button class="page-btn" (click)="goToPage(currentPage + 1)" [disabled]="currentPage === totalPages" title="Next">›</button>
+        <button class="page-btn" (click)="goToPage(totalPages)" [disabled]="currentPage === totalPages" title="Last">»</button>
+  
+      </div>
+  
+    </div>
+  
+  </div>
+  
+  <!-- Initial prompt when no search done yet -->
+  <div *ngIf="!hasSearched && !listError" class="table-empty" style="background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:var(--radius-md)">
+    <div class="table-empty-icon">🔍</div>
+    <div class="table-empty-title">Select an account and click Search</div>
+    <div class="table-empty-text">Choose an account and a date range above, then press Search to load transactions.</div>
+  </div>
+  
+  
+  <!-- ══════════════════════════════════════════════
+       MODAL: CREATE TRANSACTION
+       ══════════════════════════════════════════════ -->
+  <div *ngIf="modalMode === 'create'" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-box" (click)="$event.stopPropagation()" style="max-width:540px">
+  
+      <div class="modal-header">
+        <span class="modal-title">🧾 Add Transaction</span>
+        <button class="modal-close" (click)="closeModal()">✕</button>
+      </div>
+  
+      <div class="modal-body">
+  
+        <div *ngIf="modalAlert" class="modal-alert" [ngClass]="modalAlertType">{{ modalAlert }}</div>
+  
+        <!-- Account -->
+        <div class="field-group">
+          <label class="field-label">Account <span class="req">*</span></label>
+          <select class="field-select" [class.invalid]="acctInvalid" [(ngModel)]="form.accountId">
+            <option [ngValue]="null" disabled>
+              {{ isAcctLoading ? 'Loading…' : 'Select account' }}
+            </option>
+            <option *ngFor="let a of accounts" [ngValue]="a.accountId">
+              {{ a.accountName }} ({{ a.accountType }})
+            </option>
+          </select>
+          <div *ngIf="acctInvalid" class="field-error">Please select an account.</div>
+        </div>
+  
+        <!-- Category -->
+        <div class="field-group">
+          <label class="field-label">Category <span class="req">*</span></label>
+          <select class="field-select" [class.invalid]="catInvalid" [(ngModel)]="form.categoryId">
+            <option [ngValue]="null" disabled>
+              {{ isCatLoading ? 'Loading…' : 'Select category' }}
+            </option>
+            <optgroup *ngFor="let t of ['Expense','Income']" [label]="t">
+              <option *ngFor="let c of categories | catFilter:t" [ngValue]="c.categoryId">
+                {{ c.name }}
+              </option>
+            </optgroup>
+          </select>
+          <div *ngIf="catInvalid" class="field-error">Please select a category.</div>
+        </div>
+  
+        <!-- Type + Currency (two columns) -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="field-group">
+            <label class="field-label">Type <span class="req">*</span></label>
+            <select class="field-select" [class.invalid]="typeInvalid" [(ngModel)]="form.type">
+              <option *ngFor="let t of txTypes" [value]="t">{{ t }}</option>
+            </select>
+            <div *ngIf="typeInvalid" class="field-error">Required.</div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Currency <span class="req">*</span></label>
+            <select class="field-select" [class.invalid]="currencyInvalid" [(ngModel)]="form.currency">
+              <option *ngFor="let c of currencies" [value]="c">{{ c }}</option>
+            </select>
+            <div *ngIf="currencyInvalid" class="field-error">Required.</div>
+          </div>
+        </div>
+  
+        <!-- Amount + Date (two columns) -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="field-group">
+            <label class="field-label">Amount <span class="req">*</span></label>
+            <input class="field-input"
+                   [class.invalid]="amountInvalid"
+                   type="text"
+                   inputmode="decimal"
+                   [(ngModel)]="form.amount"
+                   placeholder="0.00"
+                   (keydown)="onAmountKeydown($event)">
+            <div *ngIf="amountInvalid" class="field-error">Must be a number greater than 0.</div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Transaction Date <span class="req">*</span></label>
+            <input class="field-input" [class.invalid]="dateInvalid"
+                   type="date" [(ngModel)]="form.transactionDate">
+            <div *ngIf="dateInvalid" class="field-error">Required.</div>
+          </div>
+        </div>
+  
+        <!-- Description -->
+        <div class="field-group">
+          <label class="field-label">Description</label>
+          <input class="field-input" type="text" [(ngModel)]="form.description"
+                 placeholder="Optional note" maxlength="255">
+        </div>
+  
+        <!-- Is Recurring -->
+        <div class="field-group">
+          <label class="field-label">Is Recurring?</label>
+          <select class="field-select" [(ngModel)]="form.isRecurring">
+            <option *ngFor="let r of recurringOpts" [ngValue]="r.value">{{ r.label }}</option>
+          </select>
+        </div>
+  
+      </div>
+  
+      <div class="modal-footer">
+        <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">Cancel</button>
+        <button class="btn-modal-primary" (click)="onCreateSave()" [disabled]="isSubmitting">
+          <span *ngIf="isSubmitting" class="spin"></span>
+          {{ isSubmitting ? 'Adding…' : 'Add Transaction' }}
+        </button>
+      </div>
+  
+    </div>
+  </div>
+  
+  
+  <!-- ══════════════════════════════════════════════
+       MODAL: EDIT TRANSACTION
+       ══════════════════════════════════════════════ -->
+  <div *ngIf="modalMode === 'edit'" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-box" (click)="$event.stopPropagation()" style="max-width:480px">
+  
+      <div class="modal-header">
+        <span class="modal-title">✏️ Edit Transaction</span>
+        <button class="modal-close" (click)="closeModal()">✕</button>
+      </div>
+  
+      <div class="modal-body">
+  
+        <!-- Loading -->
+        <div *ngIf="isSubmitting && !modalAlert"
+             style="display:flex;align-items:center;gap:10px;padding:12px 0;color:var(--clr-text-muted);font-size:0.875rem">
+          <span class="spin"></span> Loading transaction details…
+        </div>
+  
+        <div *ngIf="modalAlert" class="modal-alert" [ngClass]="modalAlertType">{{ modalAlert }}</div>
+  
+        <ng-container *ngIf="!isSubmitting || modalAlert">
+  
+          <!-- Read-only context row -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;padding:14px;background:var(--clr-surface-2);border-radius:var(--radius-sm);border:1px solid var(--clr-border)">
+            <div>
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--clr-text-subtle);margin-bottom:3px">Account</div>
+              <div style="font-size:0.85rem;font-weight:600;color:var(--clr-text)">{{ accountNameOf(form.accountId || 0) }}</div>
+            </div>
+            <div>
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--clr-text-subtle);margin-bottom:3px">Category</div>
+              <div style="font-size:0.85rem;font-weight:600;color:var(--clr-text)">{{ categoryName(form.categoryId || 0) }}</div>
+            </div>
+            <div>
+              <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--clr-text-subtle);margin-bottom:3px">Type / Currency</div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span class="tx-type" [ngClass]="typeClass(form.type)" style="font-size:0.68rem;padding:2px 6px">{{ form.type }}</span>
+                <span style="font-size:0.8rem;color:var(--clr-text-muted)">{{ form.currency }}</span>
+              </div>
+            </div>
+          </div>
+          <div style="font-size:0.72rem;color:var(--clr-text-subtle);margin-bottom:18px">
+            Account, Category, Type and Currency cannot be changed after creation.
+          </div>
+  
+          <!-- Editable: Amount + Date -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="field-group">
+              <label class="field-label">Amount <span class="req">*</span></label>
+              <input class="field-input" [class.invalid]="amountInvalid"
+                     type="text" inputmode="decimal"
+                     [(ngModel)]="form.amount" placeholder="0.00"
+                     (keydown)="onAmountKeydown($event)">
+              <div *ngIf="amountInvalid" class="field-error">Must be greater than 0.</div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Transaction Date <span class="req">*</span></label>
+              <input class="field-input" [class.invalid]="dateInvalid"
+                     type="date" [(ngModel)]="form.transactionDate">
+              <div *ngIf="dateInvalid" class="field-error">Required.</div>
+            </div>
+          </div>
+  
+          <!-- Editable: Description -->
+          <div class="field-group">
+            <label class="field-label">Description</label>
+            <input class="field-input" type="text" [(ngModel)]="form.description"
+                   placeholder="Optional note" maxlength="255">
+          </div>
+  
+        </ng-container>
+      </div>
+  
+      <div class="modal-footer">
+        <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">Cancel</button>
+        <button class="btn-modal-primary" (click)="onEditSave()" [disabled]="isSubmitting">
+          <span *ngIf="isSubmitting" class="spin"></span>
+          {{ isSubmitting ? 'Saving…' : 'Save Changes' }}
+        </button>
+      </div>
+  
+    </div>
+  </div>
+  
+  
+  <!-- ══════════════════════════════════════════════
+       MODAL: DELETE CONFIRMATION
+       ══════════════════════════════════════════════ -->
+  <div *ngIf="modalMode === 'delete'" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-box modal-sm" (click)="$event.stopPropagation()">
+  
+      <div class="modal-header">
+        <span class="modal-title">Delete Transaction</span>
+        <button class="modal-close" (click)="closeModal()">✕</button>
+      </div>
+  
+      <div *ngIf="modalAlert" style="padding:0 24px">
+        <div class="modal-alert" [ngClass]="modalAlertType">{{ modalAlert }}</div>
+      </div>
+  
+      <div *ngIf="!modalAlert" class="delete-confirm-body">
+        <div class="delete-icon">🧾</div>
+        <div class="delete-title">Delete this transaction?</div>
+        <p class="delete-text">
+          You are about to delete a
+          <span class="delete-account-name">{{ deleteTarget?.type }}</span>
+          of
+          <span class="delete-account-name">{{ deleteTarget ? formatAmount(deleteTarget.amount, deleteTarget.currency) : '' }}</span>
+          in category <span class="delete-account-name">{{ deleteTarget?.categoryName }}</span>
+          on {{ deleteTarget ? formatDate(deleteTarget.transactionDate) : '' }}.
+          This cannot be undone and the linked budget will also be updated.
+        </p>
+      </div>
+  
+      <div class="modal-footer">
+        <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">
+          {{ modalAlert && modalAlertType === 'success' ? 'Close' : 'Cancel' }}
+        </button>
+        <button *ngIf="!modalAlert || modalAlertType === 'error'"
+                class="btn-modal-danger" (click)="onDeleteConfirm()" [disabled]="isSubmitting">
+          <span *ngIf="isSubmitting" class="spin spin-light"></span>
+          {{ isSubmitting ? 'Deleting…' : 'Yes, Delete' }}
+        </button>
+      </div>
+  
+    </div>
+  </div>
+  

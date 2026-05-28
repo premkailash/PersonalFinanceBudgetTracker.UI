@@ -1,0 +1,480 @@
+<!-- ══════════════════════════════════════════════════════════
+     SAVINGS GOALS PAGE
+     ══════════════════════════════════════════════════════════ -->
+
+<!-- Page header + toolbar -->
+<div class="page-header">
+    <h1 class="page-title">Savings Goals</h1>
+    <p class="page-subtitle">Create and track your savings targets — holiday funds, emergency corpus, and more.</p>
+  </div>
+  
+  <div class="page-toolbar">
+    <span style="font-size:0.85rem;color:var(--clr-text-muted)">
+      {{ goals.length }} goal{{ goals.length !== 1 ? 's' : '' }} tracked
+    </span>
+    <button class="btn-create" (click)="openCreateModal()">
+      ＋&nbsp;Create Goal
+    </button>
+  </div>
+  
+  <!-- List error -->
+  <div *ngIf="listError" class="alert alert-error" style="margin-bottom:18px">
+    {{ listError }}
+    <button (click)="loadGoals()"
+            style="margin-left:10px;background:none;border:none;cursor:pointer;color:inherit;text-decoration:underline;font-size:0.8rem">
+      Retry
+    </button>
+  </div>
+  
+  <!-- ── Goals table ── -->
+  <div class="data-table-wrap">
+  
+    <!-- Loading skeletons -->
+    <ng-container *ngIf="isListLoading">
+      <div *ngFor="let _ of [1,2,3,4]" class="table-row-skeleton">
+        <div class="skeleton" style="flex:1.5"></div>
+        <div class="skeleton" style="flex:1.2"></div>
+        <div class="skeleton" style="flex:1"></div>
+        <div class="skeleton" style="flex:2"></div>
+        <div class="skeleton" style="flex:1"></div>
+        <div class="skeleton" style="flex:1"></div>
+        <div class="skeleton" style="flex:0.8"></div>
+      </div>
+    </ng-container>
+  
+    <!-- Empty state -->
+    <div *ngIf="!isListLoading && goals.length === 0 && !listError" class="table-empty">
+      <div class="table-empty-icon">🎯</div>
+      <div class="table-empty-title">No savings goals yet</div>
+      <div class="table-empty-text">Click "Create Goal" to set your first savings target.</div>
+    </div>
+  
+    <!-- Populated table -->
+    <table *ngIf="!isListLoading && goals.length > 0" class="data-table">
+      <thead>
+        <tr>
+          <th>Goal Name</th>
+          <th>Account</th>
+          <th class="right">Target</th>
+          <th>Progress</th>
+          <th>Target Date</th>
+          <th>Created</th>
+          <th class="center">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let g of goals">
+  
+          <!-- Goal Name -->
+          <td>
+            <div style="font-weight:600;color:var(--clr-text)">{{ g.name }}</div>
+          </td>
+  
+          <!-- Account -->
+          <td style="color:var(--clr-text-muted);font-size:0.85rem">
+            {{ accountName(g.accountId) }}
+          </td>
+  
+          <!-- Target amount -->
+          <td class="right">
+            <div class="amount-block">
+              <div class="amount-main">{{ formatCurrency(g.targetAmount) }}</div>
+              <div class="amount-sub">saved: {{ formatCurrency(g.currentAmount) }}</div>
+            </div>
+          </td>
+  
+          <!-- Progress bar -->
+          <td>
+            <div class="goal-progress-wrap">
+              <div class="goal-progress-track">
+                <div class="goal-progress-fill"
+                     [ngClass]="progressClass(progressPct(g))"
+                     [style.width]="progressPct(g) + '%'">
+                </div>
+              </div>
+              <span class="goal-pct"
+                    [style.color]="progressPct(g) >= 100 ? 'var(--clr-success)' : 'var(--clr-text-muted)'">
+                {{ progressPct(g) }}%
+              </span>
+            </div>
+          </td>
+  
+          <!-- Target Date + days remaining -->
+          <td>
+            <div style="font-size:0.85rem;color:var(--clr-text);margin-bottom:3px">
+              {{ formatDate(g.targetDate) }}
+            </div>
+            <span class="days-badge" [ngClass]="daysBadgeClass(daysRemaining(g.targetDate))">
+              {{ daysBadgeLabel(daysRemaining(g.targetDate)) }}
+            </span>
+          </td>
+  
+          <!-- Created At -->
+          <td style="color:var(--clr-text-muted);font-size:0.85rem">
+            {{ formatDate(g.createdAt) }}
+          </td>
+  
+          <!-- Actions -->
+          <td class="center">
+            <div class="row-actions">
+  
+              <!-- Contribute -->
+              <button class="icon-btn contribute"
+                      title="Add contribution"
+                      (click)="openContributeModal(g)">
+                💸
+              </button>
+  
+              <!-- Edit -->
+              <button class="icon-btn edit"
+                      title="Edit goal"
+                      (click)="openEditModal(g)">
+                ✏️
+              </button>
+  
+              <!-- Delete -->
+              <button class="icon-btn delete"
+                      title="Delete goal"
+                      (click)="openDeleteModal(g)">
+                🗑️
+              </button>
+  
+            </div>
+          </td>
+  
+        </tr>
+      </tbody>
+    </table>
+  
+  </div>
+  
+  
+  <!-- ══════════════════════════════════════════════════════════
+       MODAL: CREATE GOAL
+       ══════════════════════════════════════════════════════════ -->
+  <div *ngIf="modalMode === 'create'" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-box" (click)="$event.stopPropagation()">
+  
+      <div class="modal-header">
+        <span class="modal-title">🎯 Create Savings Goal</span>
+        <button class="modal-close" (click)="closeModal()">✕</button>
+      </div>
+  
+      <div class="modal-body">
+  
+        <!-- API alert -->
+        <div *ngIf="modalAlert" class="modal-alert" [ngClass]="modalAlertType">
+          {{ modalAlert }}
+        </div>
+  
+        <!-- Account dropdown -->
+        <div class="field-group">
+          <label class="field-label">Account <span class="req">*</span></label>
+          <select class="field-select"
+                  [class.invalid]="acctInvalid"
+                  [(ngModel)]="goalForm.accountId">
+            <option [ngValue]="null" disabled>
+              {{ isAcctLoading ? 'Loading accounts…' : 'Select account' }}
+            </option>
+            <option *ngFor="let a of accounts" [ngValue]="a.accountId">
+              {{ a.accountName }} ({{ a.accountType }})
+            </option>
+          </select>
+          <div *ngIf="acctInvalid" class="field-error">Please select an account.</div>
+        </div>
+  
+        <!-- Name -->
+        <div class="field-group">
+          <label class="field-label">Goal Name <span class="req">*</span></label>
+          <input class="field-input"
+                 [class.invalid]="nameInvalid"
+                 type="text"
+                 [(ngModel)]="goalForm.name"
+                 placeholder="e.g. Holiday Fund, Emergency Corpus"
+                 maxlength="100">
+          <div *ngIf="nameInvalid" class="field-error">Goal name is required.</div>
+        </div>
+  
+        <!-- Target Amount -->
+        <div class="field-group">
+          <label class="field-label">Target Amount <span class="req">*</span></label>
+          <input class="field-input"
+                 [class.invalid]="targetAmtInvalid"
+                 type="text"
+                 inputmode="decimal"
+                 [(ngModel)]="goalForm.targetAmount"
+                 placeholder="e.g. 100000"
+                 (keydown)="onAmountKeydown($event)">
+          <div *ngIf="targetAmtInvalid" class="field-error">
+            Target amount must be a number greater than zero.
+          </div>
+        </div>
+  
+        <!-- Current Amount -->
+        <div class="field-group">
+          <label class="field-label">Current Amount</label>
+          <input class="field-input"
+                 [class.invalid]="currentAmtInvalid"
+                 type="text"
+                 inputmode="decimal"
+                 [(ngModel)]="goalForm.currentAmount"
+                 placeholder="0"
+                 (keydown)="onAmountKeydown($event)">
+          <div *ngIf="currentAmtInvalid" class="field-error">
+            Current amount must be a valid number (≥ 0).
+          </div>
+        </div>
+  
+        <!-- Target Date -->
+        <div class="field-group">
+          <label class="field-label">Target Date <span class="req">*</span></label>
+          <input class="field-input"
+                 [class.invalid]="dateInvalid"
+                 type="date"
+                 [(ngModel)]="goalForm.targetDate"
+                 [min]="todayISO()">
+          <div *ngIf="dateInvalid" class="field-error">Please select a target date.</div>
+        </div>
+  
+      </div>
+  
+      <div class="modal-footer">
+        <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">
+          Cancel
+        </button>
+        <button class="btn-modal-primary" (click)="onCreateSave()" [disabled]="isSubmitting">
+          <span *ngIf="isSubmitting" class="spin"></span>
+          {{ isSubmitting ? 'Creating…' : 'Create Goal' }}
+        </button>
+      </div>
+  
+    </div>
+  </div>
+  
+  
+  <!-- ══════════════════════════════════════════════════════════
+       MODAL: EDIT GOAL
+       ══════════════════════════════════════════════════════════ -->
+  <div *ngIf="modalMode === 'edit'" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-box" (click)="$event.stopPropagation()">
+  
+      <div class="modal-header">
+        <span class="modal-title">✏️ Edit Savings Goal</span>
+        <button class="modal-close" (click)="closeModal()">✕</button>
+      </div>
+  
+      <div class="modal-body">
+  
+        <!-- Loading existing data -->
+        <div *ngIf="isSubmitting && !modalAlert"
+             style="display:flex;align-items:center;gap:10px;padding:12px 0;color:var(--clr-text-muted);font-size:0.875rem">
+          <span class="spin"></span> Loading goal details…
+        </div>
+  
+        <!-- API alert -->
+        <div *ngIf="modalAlert" class="modal-alert" [ngClass]="modalAlertType">
+          {{ modalAlert }}
+        </div>
+  
+        <ng-container *ngIf="!isSubmitting || modalAlert">
+  
+          <!-- Account — read-only in edit mode -->
+          <div class="field-group">
+            <label class="field-label">Account</label>
+            <input class="field-input"
+                   type="text"
+                   [value]="accountName(goalForm.accountId || 0)"
+                   readonly
+                   style="opacity:0.6;cursor:not-allowed;background:var(--clr-surface-2)">
+            <div style="font-size:0.72rem;color:var(--clr-text-subtle);margin-top:5px">
+              Account cannot be changed after creation.
+            </div>
+          </div>
+  
+          <!-- Name -->
+          <div class="field-group">
+            <label class="field-label">Goal Name <span class="req">*</span></label>
+            <input class="field-input"
+                   [class.invalid]="nameInvalid"
+                   type="text"
+                   [(ngModel)]="goalForm.name"
+                   placeholder="Goal name"
+                   maxlength="100">
+            <div *ngIf="nameInvalid" class="field-error">Goal name is required.</div>
+          </div>
+  
+          <!-- Target Amount -->
+          <div class="field-group">
+            <label class="field-label">Target Amount <span class="req">*</span></label>
+            <input class="field-input"
+                   [class.invalid]="targetAmtInvalid"
+                   type="text"
+                   inputmode="decimal"
+                   [(ngModel)]="goalForm.targetAmount"
+                   placeholder="0"
+                   (keydown)="onAmountKeydown($event)">
+            <div *ngIf="targetAmtInvalid" class="field-error">
+              Target amount must be greater than zero.
+            </div>
+          </div>
+  
+          <!-- Current Amount -->
+          <div class="field-group">
+            <label class="field-label">Current Amount</label>
+            <input class="field-input"
+                   [class.invalid]="currentAmtInvalid"
+                   type="text"
+                   inputmode="decimal"
+                   [(ngModel)]="goalForm.currentAmount"
+                   placeholder="0"
+                   (keydown)="onAmountKeydown($event)">
+            <div *ngIf="currentAmtInvalid" class="field-error">
+              Current amount must be a valid number (≥ 0).
+            </div>
+          </div>
+  
+          <!-- Target Date -->
+          <div class="field-group">
+            <label class="field-label">Target Date <span class="req">*</span></label>
+            <input class="field-input"
+                   [class.invalid]="dateInvalid"
+                   type="date"
+                   [(ngModel)]="goalForm.targetDate">
+            <div *ngIf="dateInvalid" class="field-error">Please select a target date.</div>
+          </div>
+  
+        </ng-container>
+      </div>
+  
+      <div class="modal-footer">
+        <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">
+          Cancel
+        </button>
+        <button class="btn-modal-primary" (click)="onEditSave()" [disabled]="isSubmitting">
+          <span *ngIf="isSubmitting" class="spin"></span>
+          {{ isSubmitting ? 'Saving…' : 'Save Changes' }}
+        </button>
+      </div>
+  
+    </div>
+  </div>
+  
+  
+  <!-- ══════════════════════════════════════════════════════════
+       MODAL: DELETE CONFIRMATION
+       ══════════════════════════════════════════════════════════ -->
+  <div *ngIf="modalMode === 'delete'" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-box modal-sm" (click)="$event.stopPropagation()">
+  
+      <div class="modal-header">
+        <span class="modal-title">Delete Goal</span>
+        <button class="modal-close" (click)="closeModal()">✕</button>
+      </div>
+  
+      <div *ngIf="modalAlert" style="padding:0 24px">
+        <div class="modal-alert" [ngClass]="modalAlertType">{{ modalAlert }}</div>
+      </div>
+  
+      <div *ngIf="!modalAlert" class="delete-confirm-body">
+        <div class="delete-icon">🎯</div>
+        <div class="delete-title">Delete this savings goal?</div>
+        <p class="delete-text">
+          You are about to permanently delete
+          <span class="delete-account-name">{{ deleteTarget?.name }}</span>.
+          All associated contribution history will be lost.
+        </p>
+      </div>
+  
+      <div class="modal-footer">
+        <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">
+          {{ modalAlert && modalAlertType === 'success' ? 'Close' : 'Cancel' }}
+        </button>
+        <button *ngIf="!modalAlert || modalAlertType === 'error'"
+                class="btn-modal-danger"
+                (click)="onDeleteConfirm()"
+                [disabled]="isSubmitting">
+          <span *ngIf="isSubmitting" class="spin spin-light"></span>
+          {{ isSubmitting ? 'Deleting…' : 'Yes, Delete' }}
+        </button>
+      </div>
+  
+    </div>
+  </div>
+  
+  
+  <!-- ══════════════════════════════════════════════════════════
+       MODAL: CONTRIBUTE
+       ══════════════════════════════════════════════════════════ -->
+  <div *ngIf="modalMode === 'contribute'" class="modal-overlay" (click)="closeModal()">
+    <div class="modal-box modal-sm" (click)="$event.stopPropagation()">
+  
+      <div class="contribute-header">
+        <div>
+          <div class="contribute-goal-name">Contributing to</div>
+          <div class="modal-title" style="margin-bottom:4px">{{ contributeTarget?.name }}</div>
+          <div class="contribute-current">
+            {{ formatCurrency(contributeTarget?.currentAmount || 0) }}
+            <span style="font-family:var(--font-body);font-size:1rem;color:var(--clr-text-muted)">
+              of&nbsp;{{ formatCurrency(contributeTarget?.targetAmount || 0) }}
+            </span>
+          </div>
+  
+          <!-- Mini progress bar -->
+          <div class="goal-progress-wrap" style="margin-top:10px;max-width:280px">
+            <div class="goal-progress-track" style="flex:1">
+              <div class="goal-progress-fill"
+                   [ngClass]="progressClass(progressPct(contributeTarget!))"
+                   [style.width]="progressPct(contributeTarget!) + '%'">
+              </div>
+            </div>
+            <span class="goal-pct">{{ progressPct(contributeTarget!) }}%</span>
+          </div>
+        </div>
+        <button class="modal-close" (click)="closeModal()">✕</button>
+      </div>
+  
+      <div class="modal-body">
+  
+        <!-- API alert -->
+        <div *ngIf="modalAlert" class="modal-alert" [ngClass]="modalAlertType">
+          {{ modalAlert }}
+        </div>
+  
+        <ng-container *ngIf="!modalAlert">
+          <div class="field-group">
+            <label class="field-label">Contribution Amount <span class="req">*</span></label>
+            <input class="field-input"
+                   [class.invalid]="contribAmtInvalid"
+                   type="text"
+                   inputmode="decimal"
+                   [(ngModel)]="contributeForm.autoContributeAmount"
+                   placeholder="e.g. 5000"
+                   (keydown)="onAmountKeydown($event)"
+                   autofocus>
+            <div *ngIf="contribAmtInvalid" class="field-error">
+              Please enter a valid contribution amount greater than zero.
+            </div>
+            <div style="font-size:0.75rem;color:var(--clr-text-subtle);margin-top:6px">
+              This amount will be added to the current balance of the goal.
+            </div>
+          </div>
+        </ng-container>
+  
+      </div>
+  
+      <div class="modal-footer">
+        <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">
+          {{ modalAlert && modalAlertType === 'success' ? 'Close' : 'Cancel' }}
+        </button>
+        <button *ngIf="!modalAlert || modalAlertType === 'error'"
+                class="btn-modal-primary"
+                (click)="onContributeSave()"
+                [disabled]="isSubmitting">
+          <span *ngIf="isSubmitting" class="spin"></span>
+          {{ isSubmitting ? 'Saving…' : 'Add Contribution' }}
+        </button>
+      </div>
+  
+    </div>
+  </div>
+  

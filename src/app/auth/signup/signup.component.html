@@ -1,0 +1,191 @@
+<div class="auth-page">
+
+    <!-- ── Left decorative panel ── -->
+    <aside class="auth-panel-left">
+      <div class="panel-logo">
+        <div class="panel-logo-icon">💰</div>
+        <span class="panel-logo-text">Personal Finance Budget Tracker</span>
+      </div>
+  
+      <div class="panel-hero">
+        <h1>
+          Take control of your<br>
+          <em>financial future</em>
+        </h1>
+        <p>
+          Track every rupee, plan every goal, and build wealth
+          with clarity. Your personal finance companion starts here.
+        </p>
+      </div>
+  
+      <div class="panel-stats">
+        <div class="stat-card">
+          <div class="stat-value">₹0</div>
+          <div class="stat-label">Starting balance</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">∞</div>
+          <div class="stat-label">Possibilities</div>
+        </div>
+      </div>
+    </aside>
+  
+    <!-- ── Right form panel ── -->
+    <section class="auth-panel-right">
+      <div class="auth-card">
+  
+        <!-- Header -->
+        <div class="auth-header">
+          <div class="auth-header-top">
+            <h1 class="auth-title">Create account</h1>
+            <span class="auth-link-header">
+              Already a member?&nbsp;
+              <a routerLink="/login">Sign in</a>
+            </span>
+          </div>
+          <p class="auth-subtitle">Join thousands managing their finances smarter.</p>
+        </div>
+  
+        <!-- Alert -->
+        @if (alertMessage) {
+          <div class="alert" [ngClass]="'alert-' + alertType" role="alert">
+            {{ alertMessage }}
+          </div>
+        }
+  
+        <!-- Form -->
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate autocomplete="off">
+  
+          <!-- Username -->
+          <div class="form-group">
+            <label class="form-label" for="username">
+              Username <span class="required">*</span>
+            </label>
+            <input
+              id="username"
+              type="text"
+              class="form-control"
+              [class.is-invalid]="username.invalid && username.touched"
+              formControlName="username"
+              placeholder="e.g. john_doe"
+              maxlength="50"
+              autocomplete="username"
+            >
+            @if (username.touched && username.errors) {
+              <div class="form-error">
+                @if (username.errors['required'])   { Username is required. }
+                @if (username.errors['maxlength'])  { Maximum 50 characters allowed. }
+              </div>
+            }
+          </div>
+  
+          <!-- Email -->
+          <div class="form-group">
+            <label class="form-label" for="signup-email">
+              Email address <span class="required">*</span>
+            </label>
+            <input
+              id="signup-email"
+              type="email"
+              class="form-control"
+              [class.is-invalid]="email.invalid && email.touched"
+              formControlName="email"
+              placeholder="you@example.com"
+              maxlength="100"
+              autocomplete="email"
+            >
+            @if (email.touched && email.errors) {
+              <div class="form-error">
+                @if (email.errors['required']) { Email address is required. }
+                @if (email.errors['email'])    { Please enter a valid email address. }
+                @if (email.errors['maxlength']) { Maximum 100 characters allowed. }
+              </div>
+            }
+          </div>
+  
+          <!-- Password -->
+          <div class="form-group">
+            <label class="form-label" for="signup-password">
+              Password <span class="required">*</span>
+            </label>
+            <div class="password-wrapper">
+              <input
+                id="signup-password"
+                [type]="showPassword ? 'text' : 'password'"
+                class="form-control"
+                [class.is-invalid]="password.invalid && password.touched"
+                formControlName="password"
+                placeholder="Create a strong password"
+                autocomplete="new-password"
+              >
+              <button
+                type="button"
+                class="password-toggle"
+                (click)="togglePassword()"
+                [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+              >
+                {{ showPassword ? '🙈' : '👁' }}
+              </button>
+            </div>
+  
+            <!-- Strength indicator (shown when user starts typing) -->
+            @if (password.value) {
+              <div class="password-strength">
+                <div class="strength-bars">
+                  @for (bar of [0,1,2,3]; track bar) {
+                    <div class="strength-bar" [ngClass]="strengthBarClass(bar)"></div>
+                  }
+                </div>
+                <div class="strength-rules">
+                  <span class="strength-rule" [class.met]="rules.minLen">Min 8 characters</span>
+                  <span class="strength-rule" [class.met]="rules.upper">Uppercase letter</span>
+                  <span class="strength-rule" [class.met]="rules.lower">Lowercase letter</span>
+                  <span class="strength-rule" [class.met]="rules.number">Number</span>
+                  <span class="strength-rule" [class.met]="rules.special">Special character</span>
+                </div>
+              </div>
+            }
+  
+            @if (password.touched && password.errors) {
+              <div class="form-error">
+                @if (password.errors['required'])   { Password is required. }
+                @if (password.errors['minlength'])  { Minimum 8 characters required. }
+                @if (password.errors['noUppercase']) { Must include an uppercase letter. }
+                @if (password.errors['noLowercase']) { Must include a lowercase letter. }
+                @if (password.errors['noNumber'])    { Must include a number. }
+                @if (password.errors['noSpecial'])   { Must include a special character (!&#64;#$...). }
+              </div>
+            }
+          </div>
+  
+          <!-- Buttons -->
+          <div class="btn-row">
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="isLoading"
+            >
+              @if (isLoading) {
+                <span class="btn-spinner"></span>
+                Creating account…
+              } @else {
+                Create account
+              }
+            </button>
+  
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="onClear()"
+              [disabled]="isLoading"
+            >
+              Clear
+            </button>
+          </div>
+  
+        </form>
+      </div>
+    </section>
+  
+  </div>
+  

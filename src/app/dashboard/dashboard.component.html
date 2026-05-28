@@ -1,0 +1,385 @@
+<!-- ================================================================
+     APP SHELL  — 3-row × 2-col CSS Grid
+     Wrapper divs (shell-header, shell-sidebar, etc.) carry the
+     grid-area class so the layout works regardless of how Angular
+     renders the component host elements.
+     ================================================================ -->
+     <div class="app-shell">
+
+      <!-- ── Header ── -->
+      <div class="shell-header">
+        <header class="app-header">
+          <!-- Brand -->
+          <div class="header-brand">
+            <div class="header-brand-icon">💰</div>
+            <span class="header-brand-name">Personal Finance Budget Tracker</span>
+          </div>
+    
+          <div class="header-spacer"></div>
+    
+          <!-- Right actions -->
+          <div class="header-actions">
+    
+            <span class="header-welcome">
+              Welcome&nbsp;<strong>{{ userName || 'User' }}</strong>
+            </span>
+    
+            <!-- Notification bell (User role only) -->
+            <button *ngIf="role === 'User'"
+                    class="notif-btn"
+                    (click)="toggleNotifPanel()"
+                    title="Notifications"
+                    aria-label="Open notifications">
+              🔔
+              <span *ngIf="unreadCount > 0" class="notif-badge">
+                {{ unreadCount > 99 ? '99+' : unreadCount }}
+              </span>
+            </button>
+    
+            <button class="logout-btn" (click)="onLogout()">
+              ⎋&nbsp;Logout
+            </button>
+    
+          </div>
+        </header>
+      </div>
+    
+      <!-- ── Sidebar ── -->
+      <div class="shell-sidebar">
+        <nav class="app-sidebar">
+          <div class="sidebar-label">
+            {{ role === 'Admin' ? 'Administration' : 'My Finance' }}
+          </div>
+          <button *ngFor="let item of navItems"
+                  class="nav-item"
+                  [class.active]="activePage === item.page"
+                  (click)="onPageChange(item.page)">
+            <span class="nav-item-icon">{{ item.icon }}</span>
+            <span>{{ item.label }}</span>
+          </button>
+        </nav>
+      </div>
+    
+      <!-- ── Main content ── -->
+      <div class="shell-content">
+        <main class="app-content">
+    
+          <!-- ═══════════════════════════════════════════════
+               USER DASHBOARD
+               ═══════════════════════════════════════════════ -->
+          <ng-container *ngIf="activePage === 'dashboard' && role === 'User'">
+    
+            <div class="page-header">
+              <h1 class="page-title">Dashboard</h1>
+              <p class="page-subtitle">{{ currentMonthLabel }} — financial overview</p>
+            </div>
+    
+            <!-- Error + retry -->
+            <div *ngIf="errorMsg" class="alert alert-error" style="margin-bottom:20px">
+              {{ errorMsg }}
+              <button (click)="loadUserDashboard()"
+                      style="margin-left:10px;background:none;border:none;cursor:pointer;color:inherit;text-decoration:underline;font-size:0.8rem">
+                Retry
+              </button>
+            </div>
+    
+            <!-- Skeletons while loading -->
+            <ng-container *ngIf="isLoading">
+              <div class="cards-grid">
+                <div class="skeleton skeleton-card"></div>
+                <div class="skeleton skeleton-card"></div>
+                <div class="skeleton skeleton-card"></div>
+                <div class="skeleton skeleton-card"></div>
+              </div>
+              <div class="charts-grid">
+                <div class="skeleton skeleton-chart"></div>
+                <div class="skeleton skeleton-chart"></div>
+              </div>
+            </ng-container>
+    
+            <!-- Summary cards -->
+            <div *ngIf="!isLoading" class="cards-grid">
+              <div *ngFor="let card of summaryCards"
+                   class="summary-card"
+                   [ngClass]="'card-' + card.color">
+                <div class="card-icon">{{ card.icon }}</div>
+                <span *ngIf="card.trend" class="card-trend" [ngClass]="card.trend || ''">
+                  {{ card.trend === 'up' ? '▲' : card.trend === 'down' ? '▼' : '—' }}
+                </span>
+                <div class="card-label">{{ card.label }}</div>
+                <div class="card-value">{{ card.value }}</div>
+                <div *ngIf="card.subtext" class="card-subtext">{{ card.subtext }}</div>
+              </div>
+            </div>
+    
+            <!-- Budget utilisation bar -->
+            <div *ngIf="!isLoading" class="chart-card" style="margin-bottom:20px">
+              <div class="chart-card-title">
+                <span>⚡ Budget Utilization</span>
+                <span class="chart-month-badge">{{ currentMonthLabel }}</span>
+              </div>
+              <div class="util-bar-track">
+                <div class="util-bar-fill"
+                     [style.width]="budgetUtilizationPct + '%'"
+                     [style.background]="utilizationColor">
+                </div>
+              </div>
+              <div class="util-labels">
+                <span>0%</span>
+                <span [style.color]="utilizationColor" style="font-weight:600">
+                  {{ budgetUtilizationPct }}% of income spent
+                </span>
+                <span>100%</span>
+              </div>
+            </div>
+    
+            <!-- Charts -->
+            <div *ngIf="!isLoading" class="charts-grid">
+    
+              <!-- Expenses by category -->
+              <div class="chart-card">
+                <div class="chart-card-title">
+                  <span>💸 Expenses by Category</span>
+                  <span class="chart-month-badge">{{ currentMonthLabel }}</span>
+                </div>
+                <div *ngIf="topExpenses.length === 0"
+                     style="text-align:center;padding:36px 0;color:var(--clr-text-subtle);font-size:0.875rem">
+                  No expense data for this month
+                </div>
+                <div *ngIf="topExpenses.length > 0" class="bar-chart">
+                  <div *ngFor="let cat of topExpenses" class="bar-row">
+                    <span class="bar-label" [title]="cat.categoryName">{{ cat.categoryName }}</span>
+                    <div class="bar-track">
+                      <div class="bar-fill expense-fill"
+                           [style.width]="barWidth(cat.total, maxExpense)"></div>
+                    </div>
+                    <span class="bar-amount">{{ formatAmount(cat.total) }}</span>
+                  </div>
+                </div>
+              </div>
+    
+              <!-- Income by category -->
+              <div class="chart-card">
+                <div class="chart-card-title">
+                  <span>💹 Income by Category</span>
+                  <span class="chart-month-badge">{{ currentMonthLabel }}</span>
+                </div>
+                <div *ngIf="topIncomes.length === 0"
+                     style="text-align:center;padding:36px 0;color:var(--clr-text-subtle);font-size:0.875rem">
+                  No income data for this month
+                </div>
+                <div *ngIf="topIncomes.length > 0" class="bar-chart">
+                  <div *ngFor="let cat of topIncomes" class="bar-row">
+                    <span class="bar-label" [title]="cat.categoryName">{{ cat.categoryName }}</span>
+                    <div class="bar-track">
+                      <div class="bar-fill income-fill"
+                           [style.width]="barWidth(cat.total, maxIncome)"></div>
+                    </div>
+                    <span class="bar-amount">{{ formatAmount(cat.total) }}</span>
+                  </div>
+                </div>
+              </div>
+    
+            </div>
+    
+            <!-- Account breakdown table -->
+            <div *ngIf="!isLoading && monthlyData.length > 0" class="chart-card">
+              <div class="chart-card-title">
+                <span>🏦 Account Breakdown</span>
+                <span class="chart-month-badge">{{ currentMonthLabel }}</span>
+              </div>
+              <div style="overflow-x:auto">
+                <table class="account-table">
+                  <thead>
+                    <tr>
+                      <th>Account</th>
+                      <th class="right" style="color:var(--clr-success)">Income</th>
+                      <th class="right" style="color:var(--clr-error)">Expenses</th>
+                      <th class="right" style="color:var(--clr-gold)">Net</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let row of monthlyData; let i = index"
+                        [class.alt]="i % 2 !== 0">
+                      <td>{{ row.accountName }}</td>
+                      <td class="right" style="color:var(--clr-success)">{{ formatAmount(row.totalIncome) }}</td>
+                      <td class="right" style="color:var(--clr-error)">{{ formatAmount(row.totalExpense) }}</td>
+                      <td class="right" [style.color]="row.netAmount >= 0 ? 'var(--clr-gold)' : 'var(--clr-error)'"
+                          style="font-weight:600">
+                        {{ formatAmount(row.netAmount) }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+    
+          </ng-container>
+          <!-- /user dashboard -->
+    
+          <!-- ═══════════════════════════════════════════════
+               ADMIN DASHBOARD
+               ═══════════════════════════════════════════════ -->
+          <ng-container *ngIf="activePage === 'dashboard' && role === 'Admin'">
+    
+            <div class="page-header">
+              <h1 class="page-title">Admin Dashboard</h1>
+              <p class="page-subtitle">Platform-level analytics — aggregated, no individual PII</p>
+            </div>
+    
+            <div class="admin-grid">
+              <div class="admin-metric-card">
+                <div class="admin-metric-value">—</div>
+                <div class="admin-metric-label">Total Registered Users</div>
+                <div class="admin-metric-note">From User Management API</div>
+              </div>
+              <div class="admin-metric-card">
+                <div class="admin-metric-value">—</div>
+                <div class="admin-metric-label">Active Accounts</div>
+                <div class="admin-metric-note">Aggregated across all users</div>
+              </div>
+              <div class="admin-metric-card">
+                <div class="admin-metric-value">—</div>
+                <div class="admin-metric-label">Transactions This Month</div>
+                <div class="admin-metric-note">Platform-wide count only</div>
+              </div>
+              <div class="admin-metric-card">
+                <div class="admin-metric-value">—</div>
+                <div class="admin-metric-label">Categories Managed</div>
+                <div class="admin-metric-note">From Category Management API</div>
+              </div>
+              <div class="admin-metric-card">
+                <div class="admin-metric-value">—</div>
+                <div class="admin-metric-label">Pending Exports</div>
+                <div class="admin-metric-note">IsGenerated = false count</div>
+              </div>
+              <div class="admin-metric-card">
+                <div class="admin-metric-value">—</div>
+                <div class="admin-metric-label">Audit Log Entries</div>
+                <div class="admin-metric-note">From Log Management API</div>
+              </div>
+            </div>
+    
+            <div class="chart-card">
+              <div class="chart-card-title">📋 Quick Navigation</div>
+              <p style="color:var(--clr-text-muted);font-size:0.9rem;line-height:1.7">
+                Use the sidebar to navigate to
+                <strong style="color:var(--clr-gold)">Log Management</strong>,
+                <strong style="color:var(--clr-gold)">Category Management</strong>, or
+                <strong style="color:var(--clr-gold)">User Management</strong>.
+                No individual user financial data (PII) is shown on this screen.
+              </p>
+            </div>
+    
+          </ng-container>
+          <!-- /admin dashboard -->
+    
+          <!-- ═══════════════════════════════════════════════
+               PLACEHOLDER PAGES — User menus
+               ═══════════════════════════════════════════════ -->
+          <!-- Accounts page (real component) -->
+          <app-accounts
+            *ngIf="activePage === 'accounts'"
+            [userId]="userId">
+          </app-accounts>
+    
+          <!-- Savings Goals page (real component) -->
+          <app-savings-goals
+            *ngIf="activePage === 'savings-goals'"
+            [userId]="userId">
+          </app-savings-goals>
+    
+          <!-- Budgets page (real component) -->
+          <app-budgets
+            *ngIf="activePage === 'budgets'"
+            [userId]="userId">
+          </app-budgets>
+    
+          <!-- Transactions page (real component) -->
+          <app-transactions
+            *ngIf="activePage === 'transactions'"
+            [userId]="userId">
+          </app-transactions>
+    
+          <div *ngIf="activePage === 'data-export'" class="placeholder-page">
+            <div class="placeholder-icon">📤</div>
+            <h2 class="placeholder-title">Data Export</h2>
+            <p class="placeholder-text">Request CSV or PDF reports for your transactions and budgets.</p>
+          </div>
+    
+          <div *ngIf="activePage === 'notifications'" class="placeholder-page">
+            <div class="placeholder-icon">🔔</div>
+            <h2 class="placeholder-title">Notifications</h2>
+            <p class="placeholder-text">View all your budget alerts, savings milestones, and system messages.</p>
+          </div>
+    
+          <!-- ═══════════════════════════════════════════════
+               PLACEHOLDER PAGES — Admin menus
+               ═══════════════════════════════════════════════ -->
+          <div *ngIf="activePage === 'log-management'" class="placeholder-page">
+            <div class="placeholder-icon">📋</div>
+            <h2 class="placeholder-title">Log Management</h2>
+            <p class="placeholder-text">Audit trail for all platform events — logins, transactions, deletions.</p>
+          </div>
+    
+          <div *ngIf="activePage === 'category-management'" class="placeholder-page">
+            <div class="placeholder-icon">🏷️</div>
+            <h2 class="placeholder-title">Category Management</h2>
+            <p class="placeholder-text">Add, edit, and delete Income/Expense categories used across the platform.</p>
+          </div>
+    
+          <div *ngIf="activePage === 'user-management'" class="placeholder-page">
+            <div class="placeholder-icon">👥</div>
+            <h2 class="placeholder-title">User Management</h2>
+            <p class="placeholder-text">View all registered users, update profiles, and deactivate accounts.</p>
+          </div>
+    
+        </main>
+      </div>
+    
+      <!-- ── Footer ── -->
+      <div class="shell-footer">
+        <footer class="app-footer">
+          <span>© {{ currentYear }} Personal Finance Budget Tracker</span>
+          <span style="display:flex;align-items:center;gap:12px">
+            <span style="color:var(--clr-success);font-size:0.65rem">● All systems operational</span>
+            <span>v1.0.0</span>
+          </span>
+        </footer>
+      </div>
+    
+    </div>
+    
+    <!-- ── Notification panel overlay (outside the grid) ── -->
+    <div *ngIf="showNotifPanel" class="notif-panel-overlay" (click)="closeNotifPanel()">
+      <div class="notif-panel" (click)="$event.stopPropagation()">
+    
+        <div class="notif-panel-header">
+          <span class="notif-panel-title">
+            Notifications
+            <span *ngIf="unreadCount > 0"
+                  style="color:var(--clr-gold);font-size:0.75rem;margin-left:6px">
+              {{ unreadCount }} unread
+            </span>
+          </span>
+          <button class="notif-close-btn" (click)="closeNotifPanel()">✕</button>
+        </div>
+    
+        <div class="notif-list">
+          <div *ngIf="notifications.length === 0" class="notif-empty">
+            🎉 You're all caught up!
+          </div>
+          <div *ngFor="let n of notifications"
+               class="notif-item"
+               [class.unread]="!n.isRead">
+            <div class="notif-dot" [class.read]="n.isRead"></div>
+            <div class="notif-body">
+              <div class="notif-msg">{{ n.message }}</div>
+              <div class="notif-meta">{{ n.type }} · {{ timeAgo(n.createdAt) }}</div>
+            </div>
+          </div>
+        </div>
+    
+      </div>
+    </div>
+    
