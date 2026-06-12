@@ -1,0 +1,406 @@
+<!-- ══════════════════════════════════════════════════════════
+     REPORTS PAGE
+     ══════════════════════════════════════════════════════════ -->
+
+     <div class="page-header">
+        <h1 class="page-title">Reports</h1>
+        <p class="page-subtitle">Visualise your income, expenses, and category spending.</p>
+      </div>
+      
+      <!-- ── Filter Panel ── -->
+      <div class="report-filter-panel">
+      
+        <div class="report-filter-grid">
+      
+          <!-- Report Type -->
+          <div class="report-filter-field">
+            <label class="report-filter-label">Report Type *</label>
+            <select class="field-select" [(ngModel)]="filter.reportType"
+                    (ngModelChange)="hasResult = false">
+              <option value="">Select Report</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+              <option value="category-breakdown">Category Breakdown</option>
+            </select>
+          </div>
+      
+          <!-- Month (hidden for Yearly) -->
+          <div class="report-filter-field" *ngIf="needsMonth || !filter.reportType">
+            <label class="report-filter-label">
+              Month <span *ngIf="needsMonth" style="color:var(--clr-gold)">*</span>
+            </label>
+            <select class="field-select"
+                    [(ngModel)]="filter.month"
+                    [disabled]="!needsMonth"
+                    [style.opacity]="!needsMonth ? '0.4' : '1'"
+                    (ngModelChange)="hasResult = false">
+              <option value="">Select Month</option>
+              <option *ngFor="let m of months" [value]="m.value">{{ m.label }}</option>
+            </select>
+          </div>
+      
+          <!-- Year -->
+          <div class="report-filter-field">
+            <label class="report-filter-label">Year *</label>
+            <select class="field-select" [(ngModel)]="filter.year"
+                    (ngModelChange)="hasResult = false">
+              <option value="">Select Year</option>
+              <option *ngFor="let y of years" [value]="y.value">{{ y.label }}</option>
+            </select>
+          </div>
+      
+          <!-- Chart Type -->
+          <div class="report-filter-field">
+            <label class="report-filter-label">Chart Type *</label>
+            <select class="field-select" [(ngModel)]="filter.chartType"
+                    (ngModelChange)="hasResult = false">
+              <option value="">Select Chart</option>
+              <option *ngFor="let c of chartTypes" [value]="c.value">{{ c.label }}</option>
+            </select>
+          </div>
+      
+          <!-- Get Report button -->
+          <div class="report-filter-field">
+            <label class="report-filter-label">&nbsp;</label>
+            <button class="btn-modal-primary"
+                    style="height:42px;font-size:0.875rem;width:100%"
+                    (click)="getReport()"
+                    [disabled]="isLoading || !isFilterValid"
+                    [title]="validationMessage">
+              <span *ngIf="isLoading" class="spin"></span>
+              {{ isLoading ? 'Loading…' : '📊 Get Report' }}
+            </button>
+          </div>
+      
+        </div>
+      
+        <!-- Validation hint -->
+        <div *ngIf="!isFilterValid && filter.reportType"
+             style="font-size:0.78rem;color:var(--clr-text-subtle)">
+          ⓘ {{ validationMessage }}
+        </div>
+      
+      </div>
+      
+      <!-- Error -->
+      <div *ngIf="errorMsg" class="alert alert-error" style="margin-bottom:16px">
+        {{ errorMsg }}
+        <button (click)="getReport()"
+                style="margin-left:10px;background:none;border:none;cursor:pointer;color:inherit;text-decoration:underline;font-size:0.8rem">
+          Retry
+        </button>
+      </div>
+      
+      <!-- Initial hint -->
+      <div *ngIf="!hasResult && !isLoading && !errorMsg" class="report-hint">
+        <div class="report-hint-icon">📊</div>
+        <div class="report-hint-title">Select a report type and filters above</div>
+        <div class="report-hint-text">Choose Monthly, Yearly, or Category Breakdown and click Get Report.</div>
+      </div>
+      
+      
+      <!-- ══════════════════════════════════════════════════════════
+           RESULTS
+           ══════════════════════════════════════════════════════════ -->
+      <ng-container *ngIf="hasResult && !isLoading">
+      
+        <!-- No data -->
+        <div *ngIf="chartPoints.length === 0" class="report-hint">
+          <div class="report-hint-icon">📭</div>
+          <div class="report-hint-title">No data found</div>
+          <div class="report-hint-text">No records match the selected filters. Try a different period.</div>
+        </div>
+      
+        <!-- ════════════════════════
+             BAR CHART
+             ════════════════════════ -->
+        <div *ngIf="chartPoints.length > 0 && filter.chartType === 'bar'" class="report-chart-card">
+      
+          <div class="report-chart-title">{{ reportLabel }}</div>
+          <div class="report-chart-subtitle">
+            Hover over bars to see exact values.
+          </div>
+      
+          <div class="bar-chart-wrap">
+            <div class="bar-chart-canvas">
+              <div *ngFor="let pt of chartPoints" class="bar-group">
+                <div class="bar-group-bars">
+      
+                  <!-- Income bar (hidden for category breakdown) -->
+                  <div *ngIf="filter.reportType !== 'category-breakdown' || pt.income > 0"
+                       class="bar-col income"
+                       [attr.data-value]="formatCurrency(pt.income)"
+                       [style.height]="barHeight(pt.income)">
+                  </div>
+      
+                  <!-- Expense bar -->
+                  <div *ngIf="filter.reportType !== 'category-breakdown' || pt.expense > 0"
+                       class="bar-col expense"
+                       [attr.data-value]="formatCurrency(pt.expense)"
+                       [style.height]="barHeight(pt.expense)">
+                  </div>
+      
+                  <!-- Net / total bar (category uses total) -->
+                  <div *ngIf="filter.reportType !== 'category-breakdown'"
+                       class="bar-col net"
+                       [attr.data-value]="formatCurrency(pt.net)"
+                       [style.height]="barHeight(pt.net)">
+                  </div>
+      
+                  <!-- Category: single coloured bar -->
+                  <div *ngIf="filter.reportType === 'category-breakdown'"
+                       class="bar-col cat"
+                       [style.background]="pt.color"
+                       [attr.data-value]="formatCurrency(pt.total)"
+                       [style.height]="barHeight(pt.total)">
+                  </div>
+      
+                </div>
+                <div class="bar-label" [title]="pt.label">{{ pt.label }}</div>
+              </div>
+            </div>
+          </div>
+      
+          <!-- Legend -->
+          <div class="chart-legend" *ngIf="filter.reportType !== 'category-breakdown'">
+            <div class="legend-item">
+              <div class="legend-swatch income"></div> Income
+            </div>
+            <div class="legend-item">
+              <div class="legend-swatch expense"></div> Expenses
+            </div>
+            <div class="legend-item">
+              <div class="legend-swatch net"></div> Net
+            </div>
+          </div>
+      
+        </div>
+        <!-- /bar chart -->
+      
+      
+        <!-- ════════════════════════
+             LINE CHART
+             ════════════════════════ -->
+        <div *ngIf="chartPoints.length > 0 && filter.chartType === 'line'" class="report-chart-card">
+      
+          <div class="report-chart-title">{{ reportLabel }}</div>
+          <div class="report-chart-subtitle">Income, Expenses and Net trend over time.</div>
+      
+          <div class="line-chart-wrap">
+            <svg class="line-chart-svg" [attr.viewBox]="lineViewBox" preserveAspectRatio="xMidYMid meet">
+      
+              <!-- Y-axis tick labels -->
+              <text *ngFor="let tick of lineYTicks"
+                    [attr.x]="54" [attr.y]="tick.y + 4"
+                    text-anchor="end" font-size="10" fill="var(--clr-text-subtle)">
+                {{ tick.value }}
+              </text>
+      
+              <!-- Y-axis line -->
+              <line x1="60" y1="20" x2="60" y2="180"
+                    stroke="var(--clr-border)" stroke-width="1"/>
+      
+              <!-- X-axis line -->
+              <line x1="60" y1="180" x2="580" y2="180"
+                    stroke="var(--clr-border)" stroke-width="1"/>
+      
+              <!-- Grid lines -->
+              <line *ngFor="let tick of lineYTicks"
+                    x1="60" [attr.y1]="tick.y" x2="580" [attr.y2]="tick.y"
+                    stroke="var(--clr-border)" stroke-width="0.5" stroke-dasharray="3 3" opacity="0.5"/>
+      
+              <!-- Line: Income -->
+              <path [attr.d]="linePathIncome"
+                    fill="none" stroke="var(--clr-success)" stroke-width="2"
+                    stroke-linejoin="round" stroke-linecap="round"/>
+      
+              <!-- Line: Expense -->
+              <path [attr.d]="linePathExpense"
+                    fill="none" stroke="var(--clr-error)" stroke-width="2"
+                    stroke-linejoin="round" stroke-linecap="round"/>
+      
+              <!-- Line: Net -->
+              <path [attr.d]="linePathNet"
+                    fill="none" stroke="var(--clr-gold)" stroke-width="2"
+                    stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="4 2"/>
+      
+              <!-- X-axis labels -->
+              <text *ngFor="let lbl of lineXLabels"
+                    [attr.x]="lbl.x" y="196"
+                    text-anchor="middle" font-size="9" fill="var(--clr-text-subtle)">
+                {{ lbl.label }}
+              </text>
+      
+            </svg>
+          </div>
+      
+          <!-- Legend -->
+          <div class="chart-legend">
+            <div class="legend-item">
+              <div class="legend-swatch income"></div> Income
+            </div>
+            <div class="legend-item">
+              <div class="legend-swatch expense"></div> Expenses
+            </div>
+            <div class="legend-item">
+              <div class="legend-swatch net"></div> Net
+            </div>
+          </div>
+      
+        </div>
+        <!-- /line chart -->
+      
+      
+        <!-- ════════════════════════
+             PIE CHART
+             ════════════════════════ -->
+        <div *ngIf="chartPoints.length > 0 && filter.chartType === 'pie'" class="report-chart-card">
+      
+          <div class="report-chart-title">{{ reportLabel }}</div>
+          <div class="report-chart-subtitle">
+            Distribution by
+            {{ filter.reportType === 'category-breakdown' ? 'category' : 'account' }}.
+          </div>
+      
+          <div class="pie-chart-wrap">
+      
+            <!-- SVG Pie -->
+            <svg class="pie-chart-svg" viewBox="0 0 220 220" width="220" height="220">
+      
+              <g *ngIf="pieSegments.length > 0">
+                <path *ngFor="let seg of pieSegments"
+                      [attr.d]="pieSlicePath(seg.offset, seg.pct)"
+                      [attr.fill]="seg.color"
+                      stroke="var(--clr-surface)"
+                      stroke-width="2">
+                  <title>{{ seg.label }}: {{ formatCurrency(seg.value) }} ({{ seg.pct }}%)</title>
+                </path>
+              </g>
+      
+              <!-- Donut hole -->
+              <circle cx="110" cy="110" r="42"
+                      fill="var(--clr-surface)"
+                      stroke="var(--clr-border)"
+                      stroke-width="1"/>
+      
+              <!-- Centre total label -->
+              <text x="110" y="106" text-anchor="middle"
+                    font-size="10" fill="var(--clr-text-subtle)">Total</text>
+              <text x="110" y="120" text-anchor="middle"
+                    font-size="9" fill="var(--clr-gold)" font-weight="bold">
+                {{ formatAmount(chartPoints.reduce(totalFn, 0)) }}
+              </text>
+      
+            </svg>
+      
+            <!-- Legend -->
+            <div class="pie-legend">
+              <div *ngFor="let seg of pieSegments" class="pie-legend-item">
+                <div class="pie-legend-dot" [style.background]="seg.color"></div>
+                <span class="pie-legend-label">{{ seg.label }}</span>
+                <span class="pie-legend-value">
+                  {{ formatCurrency(seg.value) }}
+                  <span style="color:var(--clr-text-subtle);font-weight:400;font-size:0.72rem">
+                    ({{ seg.pct }}%)
+                  </span>
+                </span>
+              </div>
+            </div>
+      
+          </div>
+      
+        </div>
+        <!-- /pie chart -->
+      
+      
+        <!-- ════════════════════════
+             SUMMARY TABLE (all chart types)
+             ════════════════════════ -->
+        <div *ngIf="chartPoints.length > 0" class="report-chart-card">
+      
+          <div class="report-chart-title" style="margin-bottom:16px">Data Table</div>
+      
+          <div style="overflow-x:auto">
+      
+            <!-- Monthly / Yearly summary table -->
+            <table *ngIf="filter.reportType !== 'category-breakdown'" class="report-summary-table">
+              <thead>
+                <tr>
+                  <th>{{ filter.reportType === 'yearly' ? 'Month' : 'Account' }}</th>
+                  <th class="right" style="color:var(--clr-success)">Income</th>
+                  <th class="right" style="color:var(--clr-error)">Expenses</th>
+                  <th class="right" style="color:var(--clr-gold)">Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let pt of chartPoints">
+                  <td>{{ pt.label }}</td>
+                  <td class="right txt-income">{{ formatCurrency(pt.income) }}</td>
+                  <td class="right txt-expense">{{ formatCurrency(pt.expense) }}</td>
+                  <td class="right txt-net"
+                      [ngClass]="pt.net >= 0 ? 'txt-pos' : 'txt-neg'">
+                    {{ formatCurrency(pt.net) }}
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot style="background:var(--clr-surface-2)">
+                <tr>
+                  <td style="font-weight:700;color:var(--clr-text)">Total</td>
+                  <td class="right txt-income" style="font-weight:700">{{ formatCurrency(totalIncome) }}</td>
+                  <td class="right txt-expense" style="font-weight:700">{{ formatCurrency(totalExpense) }}</td>
+                  <td class="right txt-net" style="font-weight:700"
+                      [ngClass]="totalNet >= 0 ? 'txt-pos' : 'txt-neg'">
+                    {{ formatCurrency(totalNet) }}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+      
+            <!-- Category breakdown table -->
+            <table *ngIf="filter.reportType === 'category-breakdown'" class="report-summary-table">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Type</th>
+                  <th class="right">Total</th>
+                  <th class="right">Transactions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of categoryData">
+                  <td style="display:flex;align-items:center;gap:8px">
+                    <span style="width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--clr-gold)"></span>
+                    {{ row.categoryName }}
+                  </td>
+                  <td>
+                    <span class="tx-type"
+                          [ngClass]="row.type === 'Income' ? 'income' : 'expense'">
+                      {{ row.type }}
+                    </span>
+                  </td>
+                  <td class="right"
+                      [ngClass]="row.type === 'Income' ? 'txt-income' : 'txt-expense'">
+                    {{ formatCurrency(row.total) }}
+                  </td>
+                  <td class="right" style="color:var(--clr-text-muted)">{{ row.count }}</td>
+                </tr>
+              </tbody>
+              <tfoot style="background:var(--clr-surface-2)">
+                <tr>
+                  <td colspan="2" style="font-weight:700;color:var(--clr-text)">Total</td>
+                  <td class="right" style="font-weight:700;color:var(--clr-gold)">
+                    {{ formatCurrency(categoryData.reduce(catTotalFn, 0)) }}
+                  </td>
+                  <td class="right" style="font-weight:700;color:var(--clr-text-muted)">
+                    {{ categoryData.reduce(catCountFn, 0) }}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+      
+          </div>
+        </div>
+        <!-- /summary table -->
+      
+      </ng-container>
+      

@@ -128,7 +128,7 @@ export class TransactionsComponent implements OnInit {
 
     const from = new Date(this.filter.fromDate + 'T00:00:00').toISOString();
     const to   = new Date(this.filter.toDate   + 'T23:59:59').toISOString();
-
+        
     this.txSvc.getTransactions(this.filter.accountId, from, to).subscribe({
       next: (data) => {
         this.allTransactions = Array.isArray(data) ? data : [];

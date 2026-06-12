@@ -3,14 +3,17 @@ import { CommonModule }      from '@angular/common';
 import { Router }            from '@angular/router';
 import { AuthService }       from '../services/auth.service';
 import { DashboardService }  from '../services/dashboard.service';
+import { NotificationService } from '../services/notification.service';
 import {
   MonthlyReportDto, CategoryBreakdownDto,
   SummaryCard, NotificationDto
 } from '../models/dashboard.models';
-import { AccountsComponent }      from '../pages/accounts/accounts.component';
+import { AccountsComponent }       from '../pages/accounts/accounts.component';
 import { SavingsGoalsComponent }   from '../pages/savings-goals/savings-goals.component';
 import { BudgetsComponent }        from '../pages/budgets/budgets.component';
 import { TransactionsComponent }   from '../pages/transactions/transactions.component';
+import { NotificationsComponent }  from '../pages/notifications/notifications.component';
+import { ReportsComponent }        from '../pages/reports/reports.component';
 
 interface NavItem { label: string; icon: string; page: string; }
 
@@ -20,6 +23,7 @@ const USER_NAV: NavItem[] = [
   { label: 'Savings Goals',  icon: '🎯', page: 'savings-goals'  },
   { label: 'Budgets',        icon: '💰', page: 'budgets'        },
   { label: 'Transactions',   icon: '🧾', page: 'transactions'   },
+  { label: 'Reports',        icon: '📈', page: 'reports'        },
   { label: 'Data Export',    icon: '📤', page: 'data-export'    },
   { label: 'Notifications',  icon: '🔔', page: 'notifications'  },
 ];
@@ -34,31 +38,41 @@ const ADMIN_NAV: NavItem[] = [
 @Component({
   selector:    'app-dashboard',
   standalone:  true,
-  imports:     [CommonModule, AccountsComponent, SavingsGoalsComponent, BudgetsComponent, TransactionsComponent],
+  imports:     [
+    CommonModule,
+    AccountsComponent,
+    SavingsGoalsComponent,
+    BudgetsComponent,
+    TransactionsComponent,
+    NotificationsComponent,
+    ReportsComponent
+  ],
   templateUrl: './dashboard.component.html'
 })
 export class DashboardComponent implements OnInit {
 
-  // ── session ──────────────────────────────────────────────────────────
-  role       = '';
-  userName   = '';
-  userId     = 0;
+  // ── session ───────────────────────────────────────────────────────────
+  role        = '';
+  userName    = '';
+  userId      = 0;
   currentYear = new Date().getFullYear();
 
   // ── nav ───────────────────────────────────────────────────────────────
   activePage = 'dashboard';
   get navItems(): NavItem[] { return this.role === 'Admin' ? ADMIN_NAV : USER_NAV; }
 
-  // ── data ─────────────────────────────────────────────────────────────
+  // ── data ──────────────────────────────────────────────────────────────
   monthlyData:  MonthlyReportDto[]     = [];
-  categoryData: CategoryBreakdownDto[] = [];
+  categoryData: CategoryBreakdownDto[] = [];;
   summaryCards: SummaryCard[]          = [];
   topExpenses:  CategoryBreakdownDto[] = [];
   topIncomes:   CategoryBreakdownDto[] = [];
   maxExpense    = 1;
   maxIncome     = 1;
 
-  // ── notifications ────────────────────────────────────────────────────
+  // ── notifications — now driven by NotificationService BehaviorSubject ─
+  // The unreadCount is kept in sync with the Notifications page via the
+  // shared NotificationService.unreadCount$ observable.
   notifications:  NotificationDto[] = [];
   unreadCount     = 0;
   showNotifPanel  = false;
@@ -70,9 +84,10 @@ export class DashboardComponent implements OnInit {
   currentMonthLabel  = '';
 
   constructor(
-    private auth:   AuthService,
-    private svc:    DashboardService,
-    private router: Router
+    private auth:       AuthService,
+    private svc:        DashboardService,
+    private notifSvc:   NotificationService,
+    private router:     Router
   ) {}
 
   ngOnInit(): void {
@@ -92,25 +107,38 @@ export class DashboardComponent implements OnInit {
     if (this.role === 'User') {
       this.loadUserDashboard();
       this.loadNotifications();
+
+      // Subscribe to shared unread count so header bell stays in sync
+      // with any mark-as-read / delete actions done on the Notifications page
+      this.notifSvc.unreadCount$.subscribe(count => {
+        this.unreadCount = count;
+      });
     }
   }
 
   // ── navigation ────────────────────────────────────────────────────────
-  onPageChange(page: string): void { this.activePage = page; }
+  onPageChange(page: string): void {
+    this.activePage = page;
+    // Reload notifications when the user navigates to the notifications page
+    // so the bell count and the page list are always in sync
+    if (page === 'notifications') {
+      this.loadNotifications();
+    }
+  }
 
   // ── notifications ─────────────────────────────────────────────────────
   loadNotifications(): void {
-    this.svc.getNotifications().subscribe({
+    this.notifSvc.getNotifications().subscribe({
       next: (data) => {
         this.notifications = Array.isArray(data) ? data : [];
-        this.unreadCount   = this.notifications.filter(n => !n.isRead).length;
+        // unreadCount is updated automatically via the BehaviorSubject tap()
       },
       error: () => {}
     });
   }
 
-  toggleNotifPanel():  void { this.showNotifPanel = !this.showNotifPanel; }
-  closeNotifPanel():   void { this.showNotifPanel = false; }
+  toggleNotifPanel(): void { this.showNotifPanel = !this.showNotifPanel; }
+  closeNotifPanel():  void { this.showNotifPanel = false; }
 
   timeAgo(dateStr: string): string {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -149,18 +177,18 @@ export class DashboardComponent implements OnInit {
   }
 
   private buildSummaryCards(): void {
-    const inc = this.monthlyData.reduce((s, r) => s + r.totalIncome,  0);
-    const exp = this.monthlyData.reduce((s, r) => s + r.totalExpense, 0);
-    const net = inc - exp;
+    const inc  = this.monthlyData.reduce((s, r) => s + r.totalIncome,  0);
+    const exp  = this.monthlyData.reduce((s, r) => s + r.totalExpense, 0);
+    const net  = inc - exp;
     const rate = inc > 0 ? Math.round((net / inc) * 100) : 0;
 
     this.summaryCards = [
-      { label: 'Total Income',    value: this.formatCurrency(inc),
+      { label: 'Total Income',     value: this.formatCurrency(inc),
         subtext: this.currentMonthLabel, trend: 'up', icon: '💹', color: 'green' },
-      { label: 'Total Expenses',  value: this.formatCurrency(exp),
+      { label: 'Total Expenses',   value: this.formatCurrency(exp),
         subtext: this.currentMonthLabel,
         trend: exp > inc ? 'down' : 'neutral', icon: '💸', color: 'red' },
-      { label: 'Net Savings',     value: this.formatCurrency(net),
+      { label: 'Net Savings',      value: this.formatCurrency(net),
         subtext: rate + '% savings rate',
         trend: net >= 0 ? 'up' : 'down', icon: '🏦',
         color: net >= 0 ? 'gold' : 'red' },
@@ -212,7 +240,6 @@ export class DashboardComponent implements OnInit {
     return '₹' + v.toFixed(0);
   }
 
-  // ── logout ────────────────────────────────────────────────────────────
   onLogout(): void {
     this.auth.logout().subscribe({
       next:  () => { this.auth.clearSession(); this.router.navigate(['/login']); },

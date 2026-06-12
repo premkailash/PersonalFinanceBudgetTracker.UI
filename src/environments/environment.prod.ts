@@ -1,5 +1,5 @@
 export const environment = {
     production: true,
-    apiUrl: 'https://api.financeapp.com'   // Replace with production base URL
+    apiUrl: 'http://pfbt-alb-dev-754321757.ap-south-1.elb.amazonaws.com:8080'   // Replace with production base URL
   };
   

@@ -12,7 +12,7 @@
           <!-- Brand -->
           <div class="header-brand">
             <div class="header-brand-icon">💰</div>
-            <span class="header-brand-name">Personal Finance Budget Tracker</span>
+            <span class="header-brand-name">FinanceApp</span>
           </div>
     
           <div class="header-spacer"></div>
@@ -295,6 +295,12 @@
             [userId]="userId">
           </app-budgets>
     
+          <!-- Reports page (real component) -->
+          <app-reports
+            *ngIf="activePage === 'reports'"
+            [userId]="userId">
+          </app-reports>
+    
           <!-- Transactions page (real component) -->
           <app-transactions
             *ngIf="activePage === 'transactions'"
@@ -307,11 +313,11 @@
             <p class="placeholder-text">Request CSV or PDF reports for your transactions and budgets.</p>
           </div>
     
-          <div *ngIf="activePage === 'notifications'" class="placeholder-page">
-            <div class="placeholder-icon">🔔</div>
-            <h2 class="placeholder-title">Notifications</h2>
-            <p class="placeholder-text">View all your budget alerts, savings milestones, and system messages.</p>
-          </div>
+          <!-- Notifications page (real component) -->
+          <app-notifications
+            *ngIf="activePage === 'notifications'"
+            [userId]="userId">
+          </app-notifications>
     
           <!-- ═══════════════════════════════════════════════
                PLACEHOLDER PAGES — Admin menus
@@ -340,7 +346,7 @@
       <!-- ── Footer ── -->
       <div class="shell-footer">
         <footer class="app-footer">
-          <span>© {{ currentYear }} Personal Finance Budget Tracker</span>
+          <span>© {{ currentYear }} FinanceApp — Personal Budget Tracker</span>
           <span style="display:flex;align-items:center;gap:12px">
             <span style="color:var(--clr-success);font-size:0.65rem">● All systems operational</span>
             <span>v1.0.0</span>

@@ -1,0 +1,235 @@
+<!-- ══════════════════════════════════════════════════════════
+     NOTIFICATIONS PAGE
+     ══════════════════════════════════════════════════════════ -->
+
+<!-- Page header -->
+<div class="page-header">
+    <h1 class="page-title">Notifications</h1>
+    <p class="page-subtitle">
+      All your alerts and system messages —
+      <span *ngIf="unreadCount > 0"
+            style="color:var(--clr-gold);font-weight:600">
+        {{ unreadCount }} unread
+      </span>
+      <span *ngIf="unreadCount === 0"
+            style="color:var(--clr-success)">
+        all caught up ✓
+      </span>
+    </p>
+  </div>
+  
+  <!-- Success / Error toasts -->
+  <div *ngIf="actionSuccess" class="alert alert-success" style="margin-bottom:16px">
+    {{ actionSuccess }}
+  </div>
+  <div *ngIf="actionError" class="alert alert-error" style="margin-bottom:16px">
+    {{ actionError }}
+  </div>
+  <div *ngIf="listError" class="alert alert-error" style="margin-bottom:16px">
+    {{ listError }}
+    <button (click)="loadNotifications()"
+            style="margin-left:10px;background:none;border:none;cursor:pointer;color:inherit;text-decoration:underline;font-size:0.8rem">
+      Retry
+    </button>
+  </div>
+  
+  <!-- ── Loading skeletons ── -->
+  <ng-container *ngIf="isLoading">
+    <div *ngFor="let _ of [1,2,3,4,5]" class="table-row-skeleton" style="padding:16px 20px">
+      <div class="skeleton" style="width:36px;height:36px;border-radius:50%;flex-shrink:0"></div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+        <div class="skeleton" style="height:14px;width:70%"></div>
+        <div class="skeleton" style="height:11px;width:40%"></div>
+      </div>
+      <div class="skeleton" style="width:60px;height:28px;border-radius:6px"></div>
+    </div>
+  </ng-container>
+  
+  <!-- ── Empty state ── -->
+  <div *ngIf="!isLoading && notifications.length === 0 && !listError"
+       class="table-empty"
+       style="background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:var(--radius-md)">
+    <div class="table-empty-icon">🔔</div>
+    <div class="table-empty-title">No notifications yet</div>
+    <div class="table-empty-text">Budget and savings goal alerts will appear here.</div>
+  </div>
+  
+  <!-- ══════════════════════════════════════════════════════════
+       UNREAD SECTION
+       ══════════════════════════════════════════════════════════ -->
+  <ng-container *ngIf="!isLoading && unreadNotifications.length > 0">
+  
+    <div class="notif-section-header">
+      <span class="notif-section-label">🔴 Unread ({{ unreadNotifications.length }})</span>
+    </div>
+  
+    <div class="data-table-wrap" style="margin-bottom:24px">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width:44px"></th>
+            <th>Message</th>
+            <th>Type</th>
+            <th>Received</th>
+            <th class="center">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let n of unreadNotifications" class="notif-row-unread">
+  
+            <!-- Type icon -->
+            <td class="center" style="font-size:1.2rem">{{ typeIcon(n.type) }}</td>
+  
+            <!-- Message -->
+            <td>
+              <div class="notif-msg-text">{{ n.message }}</div>
+            </td>
+  
+            <!-- Type badge -->
+            <td>
+              <span class="notif-type-badge" [ngClass]="typeBadgeClass(n.type)">
+                {{ n.type }}
+              </span>
+            </td>
+  
+            <!-- Created at -->
+            <td style="color:var(--clr-text-muted);font-size:0.82rem;white-space:nowrap">
+              <div>{{ formatDate(n.createdAt) }}</div>
+              <div style="font-size:0.72rem;color:var(--clr-text-subtle)">{{ timeAgo(n.createdAt) }}</div>
+            </td>
+  
+            <!-- Actions -->
+            <td class="center">
+              <div class="row-actions">
+                <!-- Mark as Read -->
+                <button class="icon-btn notif-read-btn"
+                        title="Mark as read"
+                        [disabled]="actioningId === n.notificationId"
+                        (click)="onMarkAsRead(n)">
+                  <span *ngIf="actioningId === n.notificationId" class="spin" style="width:14px;height:14px;border-width:2px"></span>
+                  <span *ngIf="actioningId !== n.notificationId">✓</span>
+                </button>
+                <!-- Delete -->
+                <button class="icon-btn delete"
+                        title="Delete notification"
+                        [disabled]="actioningId === n.notificationId"
+                        (click)="openDeleteConfirm(n)">
+                  🗑️
+                </button>
+              </div>
+            </td>
+  
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  
+  </ng-container>
+  
+  <!-- ══════════════════════════════════════════════════════════
+       READ SECTION
+       ══════════════════════════════════════════════════════════ -->
+  <ng-container *ngIf="!isLoading && readNotifications.length > 0">
+  
+    <div class="notif-section-header">
+      <span class="notif-section-label" style="color:var(--clr-text-subtle)">
+        Read ({{ readNotifications.length }})
+      </span>
+    </div>
+  
+    <div class="data-table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width:44px"></th>
+            <th>Message</th>
+            <th>Type</th>
+            <th>Received</th>
+            <th class="center">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let n of readNotifications" class="notif-row-read">
+  
+            <!-- Type icon (dimmed) -->
+            <td class="center" style="font-size:1.2rem;opacity:0.45">{{ typeIcon(n.type) }}</td>
+  
+            <!-- Message -->
+            <td>
+              <div class="notif-msg-text notif-msg-read">{{ n.message }}</div>
+            </td>
+  
+            <!-- Type badge -->
+            <td>
+              <span class="notif-type-badge notif-badge-muted">{{ n.type }}</span>
+            </td>
+  
+            <!-- Created at -->
+            <td style="color:var(--clr-text-subtle);font-size:0.82rem;white-space:nowrap">
+              <div>{{ formatDate(n.createdAt) }}</div>
+              <div style="font-size:0.72rem">{{ timeAgo(n.createdAt) }}</div>
+            </td>
+  
+            <!-- Actions -->
+            <td class="center">
+              <div class="row-actions">
+                <!-- Already read — show disabled tick -->
+                <button class="icon-btn"
+                        title="Already read"
+                        disabled
+                        style="opacity:0.3;cursor:not-allowed">
+                  ✓
+                </button>
+                <!-- Delete -->
+                <button class="icon-btn delete"
+                        title="Delete notification"
+                        (click)="openDeleteConfirm(n)">
+                  🗑️
+                </button>
+              </div>
+            </td>
+  
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  
+  </ng-container>
+  
+  
+  <!-- ══════════════════════════════════════════════════════════
+       DELETE CONFIRMATION MODAL
+       ══════════════════════════════════════════════════════════ -->
+  <div *ngIf="deleteTarget" class="modal-overlay" (click)="cancelDelete()">
+    <div class="modal-box modal-sm" (click)="$event.stopPropagation()">
+  
+      <div class="modal-header">
+        <span class="modal-title">Delete Notification</span>
+        <button class="modal-close" (click)="cancelDelete()">✕</button>
+      </div>
+  
+      <div *ngIf="deleteError" style="padding:0 24px">
+        <div class="modal-alert error">{{ deleteError }}</div>
+      </div>
+  
+      <div *ngIf="!deleteError" class="delete-confirm-body">
+        <div class="delete-icon">🔔</div>
+        <div class="delete-title">Delete this notification?</div>
+        <p class="delete-text" style="max-width:280px;margin:0 auto">
+          {{ deleteTarget!.message }}
+        </p>
+      </div>
+  
+      <div class="modal-footer">
+        <button class="btn-modal-secondary" (click)="cancelDelete()" [disabled]="isDeleting">
+          Cancel
+        </button>
+        <button class="btn-modal-danger" (click)="confirmDelete()" [disabled]="isDeleting">
+          <span *ngIf="isDeleting" class="spin spin-light"></span>
+          {{ isDeleting ? 'Deleting…' : 'Yes, Delete' }}
+        </button>
+      </div>
+  
+    </div>
+  </div>
+  

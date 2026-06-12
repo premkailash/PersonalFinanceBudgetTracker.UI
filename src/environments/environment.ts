@@ -1,5 +1,5 @@
 export const environment = {
     production: false,
-    apiUrl: 'http://localhost:5134'   // Update to your backend base URL
+    apiUrl: 'http://pfbt-alb-dev-754321757.ap-south-1.elb.amazonaws.com:8080'   // Update to your backend base URL
   };
   
