@@ -1,7 +1,7 @@
 import { Component, OnInit, Input } from '@angular/core';
 import { CommonModule }              from '@angular/common';
 import { FormsModule }               from '@angular/forms';
-import { ReportService }             from '../../services/report.service'
+import { ReportService }             from '../../services/report.service';
 import {
   ReportFilter, ReportType, ChartType,
   ChartDataPoint, YearlyReportDto,
@@ -209,16 +209,25 @@ export class ReportsComponent implements OnInit {
   private buildChartVisualisations(): void {
     if (!this.chartPoints.length) return;
 
-    this.maxBarValue = Math.max(
-      ...this.chartPoints.map(p => Math.max(p.income, p.expense, Math.abs(p.net))),
-      1
-    );
+    // FIX: For monthly/yearly use only income and expense for the bar scale.
+    // Net can be negative and inflates maxBarValue, shrinking all bars.
+    // For category breakdown, total is the only series so use that.
+    if (this.filter.reportType === 'category-breakdown') {
+      this.maxBarValue = Math.max(
+        ...this.chartPoints.map(p => p.total), 1
+      );
+    } else {
+      this.maxBarValue = Math.max(
+        ...this.chartPoints.map(p => Math.max(p.income, p.expense)), 1
+      );
+    }
 
     if (this.filter.chartType === 'pie') {
       this.buildPieSegments();
     } else if (this.filter.chartType === 'line') {
       this.buildLinePaths();
     }
+    // bar chart uses barHeight() directly — no extra build step needed
   }
 
   // ── Bar height (percentage of maxBarValue) ─────────────────────────────────
@@ -321,10 +330,27 @@ export class ReportsComponent implements OnInit {
   get totalExpense(): number { return this.chartPoints.reduce((s,p) => s + p.expense, 0); }
   get totalNet():     number { return this.totalIncome - this.totalExpense; }
 
-  // ── Reduce helpers used directly in template expressions ─────────────────
-  readonly totalFn    = (s: number, p: ChartDataPoint)          => s + p.total;
-  readonly catTotalFn = (s: number, r: CategoryBreakdownDto)    => s + r.total;
-  readonly catCountFn = (s: number, r: CategoryBreakdownDto)    => s + r.count;
+  // Pre-computed category totals — avoids calling .reduce() inline in the
+  // template which causes ExpressionChangedAfterItHasBeenChecked errors
+  // because reduce() returns a new number reference every change detection cycle.
+  get categoryGrandTotal(): number {
+    return this.categoryData.reduce((s, r) => s + r.total, 0);
+  }
+
+  get categoryGrandCount(): number {
+    return this.categoryData.reduce((s, r) => s + r.count, 0);
+  }
+
+  // Pre-computed pie centre total (same reason — avoids inline reduce in SVG)
+  get pieTotalLabel(): string {
+    const total = this.chartPoints.reduce((s, p) => s + p.total, 0);
+    return this.formatAmount(total);
+  }
+
+  // ── Reduce helpers (kept for backward compat but no longer used in template)
+  readonly totalFn    = (s: number, p: ChartDataPoint)       => s + p.total;
+  readonly catTotalFn = (s: number, r: CategoryBreakdownDto) => s + r.total;
+  readonly catCountFn = (s: number, r: CategoryBreakdownDto) => s + r.count;
 
   // ── Line chart viewport ───────────────────────────────────────────────────
   readonly lineViewBox = '0 0 600 220';
