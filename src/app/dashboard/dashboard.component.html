@@ -112,80 +112,126 @@
               </div>
             </div>
     
-            <!-- Budget utilisation bar -->
-            <div *ngIf="!isLoading" class="chart-card" style="margin-bottom:20px">
-              <div class="chart-card-title">
-                <span>⚡ Budget Utilization</span>
-                <span class="chart-month-badge">{{ currentMonthLabel }}</span>
-              </div>
-              <div class="util-bar-track">
-                <div class="util-bar-fill"
-                     [style.width]="budgetUtilizationPct + '%'"
-                     [style.background]="utilizationColor">
-                </div>
-              </div>
-              <div class="util-labels">
-                <span>0%</span>
-                <span [style.color]="utilizationColor" style="font-weight:600">
-                  {{ budgetUtilizationPct }}% of income spent
-                </span>
-                <span>100%</span>
-              </div>
+            <!-- Budget utilisation bar — REMOVED: now rendered per account below -->
+    
+            <!-- ══════════════════════════════════════════════════
+                 PER-ACCOUNT PANELS
+                 One card per linked account — never combined.
+                 ══════════════════════════════════════════════════ -->
+    
+            <!-- No data state -->
+            <div *ngIf="!isLoading && accountDashboards.length === 0 && !errorMsg"
+                 style="text-align:center;padding:56px 24px;color:var(--clr-text-subtle)">
+              <div style="font-size:2.8rem;margin-bottom:12px;opacity:0.5">🏦</div>
+              <div style="font-size:1rem;color:var(--clr-text-muted);margin-bottom:4px">No accounts linked yet</div>
+              <div style="font-size:0.875rem">Go to Accounts and link your first bank or wallet account.</div>
             </div>
     
-            <!-- Charts -->
-            <div *ngIf="!isLoading" class="charts-grid">
+            <!-- One section per account -->
+            <ng-container *ngFor="let acct of accountDashboards; let i = index">
     
-              <!-- Expenses by category -->
-              <div class="chart-card">
-                <div class="chart-card-title">
-                  <span>💸 Expenses by Category</span>
-                  <span class="chart-month-badge">{{ currentMonthLabel }}</span>
-                </div>
-                <div *ngIf="topExpenses.length === 0"
-                     style="text-align:center;padding:36px 0;color:var(--clr-text-subtle);font-size:0.875rem">
-                  No expense data for this month
-                </div>
-                <div *ngIf="topExpenses.length > 0" class="bar-chart">
-                  <div *ngFor="let cat of topExpenses" class="bar-row">
-                    <span class="bar-label" [title]="cat.categoryName">{{ cat.categoryName }}</span>
-                    <div class="bar-track">
-                      <div class="bar-fill expense-fill"
-                           [style.width]="barWidth(cat.total, maxExpense)"></div>
-                    </div>
-                    <span class="bar-amount">{{ formatAmount(cat.total) }}</span>
+              <!-- Account section header -->
+              <div style="display:flex;align-items:center;gap:12px;margin:28px 0 14px">
+                <div style="width:36px;height:36px;border-radius:10px;background:var(--clr-gold-dim);
+                            display:flex;align-items:center;justify-content:center;font-size:1.1rem;
+                            border:1px solid var(--clr-gold);flex-shrink:0">🏦</div>
+                <div>
+                  <div style="font-family:var(--font-display);font-size:1rem;
+                              color:var(--clr-text);font-weight:600">
+                    {{ acct.accountName }}
+                  </div>
+                  <div style="font-size:0.75rem;color:var(--clr-text-subtle)">
+                    Income {{ formatCurrency(acct.totalIncome) }} &nbsp;·&nbsp;
+                    Expenses {{ formatCurrency(acct.totalExpense) }} &nbsp;·&nbsp;
+                    <span [style.color]="acct.netAmount >= 0 ? 'var(--clr-gold)' : 'var(--clr-error)'"
+                          style="font-weight:600">
+                      Net {{ formatAmount(acct.netAmount) }}
+                    </span>
                   </div>
                 </div>
               </div>
     
-              <!-- Income by category -->
-              <div class="chart-card">
+              <!-- Budget utilisation bar for this account -->
+              <div class="chart-card" style="margin-bottom:14px">
                 <div class="chart-card-title">
-                  <span>💹 Income by Category</span>
+                  <span>⚡ Budget Utilization — {{ acct.accountName }}</span>
                   <span class="chart-month-badge">{{ currentMonthLabel }}</span>
                 </div>
-                <div *ngIf="topIncomes.length === 0"
-                     style="text-align:center;padding:36px 0;color:var(--clr-text-subtle);font-size:0.875rem">
-                  No income data for this month
-                </div>
-                <div *ngIf="topIncomes.length > 0" class="bar-chart">
-                  <div *ngFor="let cat of topIncomes" class="bar-row">
-                    <span class="bar-label" [title]="cat.categoryName">{{ cat.categoryName }}</span>
-                    <div class="bar-track">
-                      <div class="bar-fill income-fill"
-                           [style.width]="barWidth(cat.total, maxIncome)"></div>
-                    </div>
-                    <span class="bar-amount">{{ formatAmount(cat.total) }}</span>
+                <div class="util-bar-track">
+                  <div class="util-bar-fill"
+                       [style.width]="acct.utilPct + '%'"
+                       [style.background]="acct.utilColor">
                   </div>
+                </div>
+                <div class="util-labels">
+                  <span>0%</span>
+                  <span [style.color]="acct.utilColor" style="font-weight:600">
+                    {{ acct.utilPct }}% of income spent
+                  </span>
+                  <span>100%</span>
                 </div>
               </div>
     
-            </div>
+              <!-- Expenses + Income charts side by side for this account -->
+              <div class="charts-grid" style="margin-bottom:8px">
     
-            <!-- Account breakdown table -->
-            <div *ngIf="!isLoading && monthlyData.length > 0" class="chart-card">
+                <!-- Expenses by category -->
+                <div class="chart-card">
+                  <div class="chart-card-title">
+                    <span>💸 Expenses by Category</span>
+                    <span class="chart-month-badge">{{ acct.accountName }}</span>
+                  </div>
+                  <div *ngIf="acct.topExpenses.length === 0"
+                       style="text-align:center;padding:36px 0;color:var(--clr-text-subtle);font-size:0.875rem">
+                    No expense data for this account
+                  </div>
+                  <div *ngIf="acct.topExpenses.length > 0" class="bar-chart">
+                    <div *ngFor="let cat of acct.topExpenses" class="bar-row">
+                      <span class="bar-label" [title]="cat.categoryName">{{ cat.categoryName }}</span>
+                      <div class="bar-track">
+                        <div class="bar-fill expense-fill"
+                             [style.width]="barWidth(cat.total, acct.maxExpense)"></div>
+                      </div>
+                      <span class="bar-amount">{{ formatAmount(cat.total) }}</span>
+                    </div>
+                  </div>
+                </div>
+    
+                <!-- Income by category -->
+                <div class="chart-card">
+                  <div class="chart-card-title">
+                    <span>💹 Income by Category</span>
+                    <span class="chart-month-badge">{{ acct.accountName }}</span>
+                  </div>
+                  <div *ngIf="acct.topIncomes.length === 0"
+                       style="text-align:center;padding:36px 0;color:var(--clr-text-subtle);font-size:0.875rem">
+                    No income data for this account
+                  </div>
+                  <div *ngIf="acct.topIncomes.length > 0" class="bar-chart">
+                    <div *ngFor="let cat of acct.topIncomes" class="bar-row">
+                      <span class="bar-label" [title]="cat.categoryName">{{ cat.categoryName }}</span>
+                      <div class="bar-track">
+                        <div class="bar-fill income-fill"
+                             [style.width]="barWidth(cat.total, acct.maxIncome)"></div>
+                      </div>
+                      <span class="bar-amount">{{ formatAmount(cat.total) }}</span>
+                    </div>
+                  </div>
+                </div>
+    
+              </div>
+    
+              <!-- Divider between accounts (not after the last one) -->
+              <div *ngIf="i < accountDashboards.length - 1"
+                   style="border-top:1px dashed var(--clr-border);margin:24px 0 0"></div>
+    
+            </ng-container>
+            <!-- /per-account panels -->
+    
+            <!-- Cross-account breakdown table (all accounts, for comparison) -->
+            <div *ngIf="!isLoading && monthlyData.length > 1" class="chart-card" style="margin-top:24px">
               <div class="chart-card-title">
-                <span>🏦 Account Breakdown</span>
+                <span>🏦 All Accounts — Comparison</span>
                 <span class="chart-month-badge">{{ currentMonthLabel }}</span>
               </div>
               <div style="overflow-x:auto">
@@ -196,17 +242,24 @@
                       <th class="right" style="color:var(--clr-success)">Income</th>
                       <th class="right" style="color:var(--clr-error)">Expenses</th>
                       <th class="right" style="color:var(--clr-gold)">Net</th>
+                      <th class="right">Utilisation</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let row of monthlyData; let i = index"
+                    <tr *ngFor="let acct of accountDashboards; let i = index"
                         [class.alt]="i % 2 !== 0">
-                      <td>{{ row.accountName }}</td>
-                      <td class="right" style="color:var(--clr-success)">{{ formatAmount(row.totalIncome) }}</td>
-                      <td class="right" style="color:var(--clr-error)">{{ formatAmount(row.totalExpense) }}</td>
-                      <td class="right" [style.color]="row.netAmount >= 0 ? 'var(--clr-gold)' : 'var(--clr-error)'"
+                      <td style="font-weight:500">{{ acct.accountName }}</td>
+                      <td class="right" style="color:var(--clr-success)">{{ formatCurrency(acct.totalIncome) }}</td>
+                      <td class="right" style="color:var(--clr-error)">{{ formatCurrency(acct.totalExpense) }}</td>
+                      <td class="right"
+                          [style.color]="acct.netAmount >= 0 ? 'var(--clr-gold)' : 'var(--clr-error)'"
                           style="font-weight:600">
-                        {{ formatAmount(row.netAmount) }}
+                        {{ formatAmount(acct.netAmount) }}
+                      </td>
+                      <td class="right">
+                        <span [style.color]="acct.utilColor" style="font-weight:700">
+                          {{ acct.utilPct }}%
+                        </span>
                       </td>
                     </tr>
                   </tbody>

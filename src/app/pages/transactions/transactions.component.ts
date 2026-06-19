@@ -4,7 +4,7 @@ import { FormsModule }               from '@angular/forms';
 
 import { TransactionService }        from '../../services/transaction.service';
 import { AccountService }            from '../../services/account.service';
-import { BudgetService }             from '../../services/budget.service';   // reuse for categories
+import { BudgetService }             from '../../services/budget.service';
 import { AccountResponseDto }        from '../../models/account.models';
 import { CategoryDto }               from '../../models/budget.models';
 import {
@@ -14,6 +14,8 @@ import {
   TxModalMode
 } from '../../models/transaction.models';
 import { CatFilterPipe } from '../../pipes/shared.pipes';
+
+const MAX_AMOUNT = 1_000_000;
 
 @Component({
   selector:    'app-transactions',
@@ -46,7 +48,7 @@ export class TransactionsComponent implements OnInit {
 
   isListLoading  = false;
   listError      = '';
-  hasSearched    = false;   // true once the user hits Search
+  hasSearched    = false;
 
   // ── Pagination ────────────────────────────────────────────────────────
   currentPage  = 1;
@@ -63,18 +65,23 @@ export class TransactionsComponent implements OnInit {
   }
 
   // ── Modal state ───────────────────────────────────────────────────────
-  modalMode:     TxModalMode = 'none';
-  isSubmitting   = false;
-  modalAlert     = '';
+  modalMode:      TxModalMode = 'none';
+  isSubmitting    = false;
+  modalAlert      = '';
   modalAlertType: 'success' | 'error' = 'success';
-  deleteTarget:  TransactionResponseDto | null = null;
+  deleteTarget:   TransactionResponseDto | null = null;
 
   // ── Form model ────────────────────────────────────────────────────────
   form:    TransactionForm = this.emptyForm();
   touched  = false;
 
-  readonly txTypes   = ['Income', 'Expense'];
-  readonly currencies = ['INR', 'USD', 'EUR'];
+  // ── Create modal: locked field flags ─────────────────────────────────
+  // true = auto-set from account/category selection, user cannot change it
+  currencyLocked = false;
+  typeLocked     = false;
+
+  readonly currencies   = ['INR', 'USD', 'EUR'];
+  readonly Types = ['Income','Expense'];
   readonly recurringOpts = [
     { label: 'No',  value: false },
     { label: 'Yes', value: true  }
@@ -128,7 +135,7 @@ export class TransactionsComponent implements OnInit {
 
     const from = new Date(this.filter.fromDate + 'T00:00:00').toISOString();
     const to   = new Date(this.filter.toDate   + 'T23:59:59').toISOString();
-        
+
     this.txSvc.getTransactions(this.filter.accountId, from, to).subscribe({
       next: (data) => {
         this.allTransactions = Array.isArray(data) ? data : [];
@@ -155,7 +162,6 @@ export class TransactionsComponent implements OnInit {
 
   private applyClientFilter(): void {
     const q = this.filter.search.trim().toLowerCase();
-
     this.filteredTransactions = q
       ? this.allTransactions.filter(t =>
           (t.description?.toLowerCase().includes(q) ?? false) ||
@@ -163,42 +169,65 @@ export class TransactionsComponent implements OnInit {
           t.type.toLowerCase().includes(q)
         )
       : [...this.allTransactions];
-
     this.buildPage();
   }
 
   private buildPage(): void {
-    const total       = this.filteredTransactions.length;
-    this.totalPages   = Math.max(1, Math.ceil(total / this.pageSize));
-    this.currentPage  = Math.min(this.currentPage, this.totalPages);
-    const start       = (this.currentPage - 1) * this.pageSize;
+    const total      = this.filteredTransactions.length;
+    this.totalPages  = Math.max(1, Math.ceil(total / this.pageSize));
+    this.currentPage = Math.min(this.currentPage, this.totalPages);
+    const start      = (this.currentPage - 1) * this.pageSize;
     this.pageTransactions = this.filteredTransactions.slice(start, start + this.pageSize);
   }
 
-  // ── Pagination actions ────────────────────────────────────────────────
   goToPage(p: number): void {
     if (p < 1 || p > this.totalPages) return;
     this.currentPage = p;
     this.buildPage();
   }
 
-  onPageSizeChange(): void {
-    this.currentPage = 1;
-    this.buildPage();
-  }
+  onPageSizeChange(): void { this.currentPage = 1; this.buildPage(); }
 
   get startRecord(): number { return (this.currentPage - 1) * this.pageSize + 1; }
   get endRecord():   number { return Math.min(this.currentPage * this.pageSize, this.filteredTransactions.length); }
 
   // ═══════════════════════════════════════════════════════════════════════
-  //  CREATE MODAL
+  //  CREATE MODAL — new smart behaviours
   // ═══════════════════════════════════════════════════════════════════════
 
   openCreateModal(): void {
-    this.form       = this.emptyForm();
-    this.touched    = false;
-    this.modalAlert = '';
-    this.modalMode  = 'create';
+    this.form           = this.emptyForm();
+    this.touched        = false;
+    this.modalAlert     = '';
+    this.currencyLocked = false;
+    this.typeLocked     = false;
+    this.modalMode      = 'create';
+  }
+
+  /**
+   * (i) When account changes → auto-set currency from account and lock the field.
+   */
+  onAccountChange(): void {
+    const acct = this.accounts.find(a => a.accountId === Number(this.form.accountId));
+    if (acct?.currency) {
+      this.form.currency  = acct.currency;
+      this.currencyLocked = true;
+    } else {
+      this.currencyLocked = false;
+    }
+  }
+
+  /**
+   * (j) When category changes → auto-set type from category and lock the field.
+   */
+  onCategoryChange(): void {
+    const cat = this.categories.find(c => c.categoryId === Number(this.form.categoryId));
+    if (cat?.type) {
+      this.form.type = cat.type;   // 'Income' | 'Expense'
+      this.typeLocked = true;
+    } else {
+      this.typeLocked = false;
+    }
   }
 
   onCreateSave(): void {
@@ -250,14 +279,14 @@ export class TransactionsComponent implements OnInit {
         this.isSubmitting = false;
         this.form = {
           transactionId:   data.transactionId,
-          accountId:       data.accountId,           // read-only
-          categoryId:      data.categoryId,          // read-only
+          accountId:       data.accountId,
+          categoryId:      data.categoryId,
           description:     data.description ?? '',
-          type:            data.type,                // read-only
-          currency:        data.currency,            // read-only
+          type:            data.type,
+          currency:        data.currency,
           amount:          data.amount.toString(),
           transactionDate: this.toDateInput(data.transactionDate),
-          isRecurring:     data.isRecurring          // read-only context
+          isRecurring:     data.isRecurring
         };
       },
       error: (err: Error) => {
@@ -330,10 +359,12 @@ export class TransactionsComponent implements OnInit {
   }
 
   closeModal(): void {
-    this.modalMode    = 'none';
-    this.modalAlert   = '';
-    this.touched      = false;
-    this.deleteTarget = null;
+    this.modalMode      = 'none';
+    this.modalAlert     = '';
+    this.touched        = false;
+    this.deleteTarget   = null;
+    this.currencyLocked = false;
+    this.typeLocked     = false;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -350,7 +381,7 @@ export class TransactionsComponent implements OnInit {
     return (
       createExtras &&
       this.form.transactionDate.length > 0 &&
-      !isNaN(amt) && amt > 0
+      !isNaN(amt) && amt > 0 && amt <= MAX_AMOUNT
     );
   }
 
@@ -360,12 +391,23 @@ export class TransactionsComponent implements OnInit {
   get currencyInvalid(): boolean { return this.touched && this.modalMode === 'create' && !this.form.currency; }
   get dateInvalid():     boolean { return this.touched && !this.form.transactionDate; }
 
-  get amountInvalid(): boolean {
-    if (!this.touched) return false;
-    const v = parseFloat(this.form.amount);
-    return isNaN(v) || v <= 0;
+  /**
+   * Amount validation — covers: required, non-numeric, ≤ 0, > 1 000 000.
+   * Returns a specific error key so the template can show the right message.
+   */
+  get amountError(): 'required' | 'invalid' | 'large' | null {
+    if (!this.touched) return null;
+    const raw = this.form.amount.trim();
+    if (!raw) return 'required';
+    const v = parseFloat(raw);
+    if (isNaN(v) || v <= 0) return 'invalid';
+    if (v > MAX_AMOUNT)     return 'large';
+    return null;
   }
 
+  get amountInvalid(): boolean { return this.amountError !== null; }
+
+  /** Allow only digits and one decimal point; block non-numeric keys. */
   onAmountKeydown(e: KeyboardEvent): void {
     const allowed = ['0','1','2','3','4','5','6','7','8','9','.','Backspace',
                      'Delete','ArrowLeft','ArrowRight','Tab'];

@@ -17,6 +17,26 @@ import { ReportsComponent }        from '../pages/reports/reports.component';
 
 interface NavItem { label: string; icon: string; page: string; }
 
+// ── Per-account view model ────────────────────────────────────────────────────
+// Holds all dashboard widgets for one linked account so the template can
+// *ngFor over accounts and render each independently.
+export interface AccountDashboard {
+  accountId:    number;
+  accountName:  string;
+  // Summary numbers
+  totalIncome:  number;
+  totalExpense: number;
+  netAmount:    number;
+  // Budget utilisation
+  utilPct:      number;
+  utilColor:    string;
+  // Category charts
+  topExpenses:  CategoryBreakdownDto[];
+  topIncomes:   CategoryBreakdownDto[];
+  maxExpense:   number;
+  maxIncome:    number;
+}
+
 const USER_NAV: NavItem[] = [
   { label: 'Dashboard',      icon: '📊', page: 'dashboard'      },
   { label: 'Accounts',       icon: '🏦', page: 'accounts'       },
@@ -61,33 +81,32 @@ export class DashboardComponent implements OnInit {
   activePage = 'dashboard';
   get navItems(): NavItem[] { return this.role === 'Admin' ? ADMIN_NAV : USER_NAV; }
 
-  // ── data ──────────────────────────────────────────────────────────────
+  // ── raw API data ──────────────────────────────────────────────────────
   monthlyData:  MonthlyReportDto[]     = [];
-  categoryData: CategoryBreakdownDto[] = [];;
-  summaryCards: SummaryCard[]          = [];
-  topExpenses:  CategoryBreakdownDto[] = [];
-  topIncomes:   CategoryBreakdownDto[] = [];
-  maxExpense    = 1;
-  maxIncome     = 1;
+  categoryData: CategoryBreakdownDto[] = [];
 
-  // ── notifications — now driven by NotificationService BehaviorSubject ─
-  // The unreadCount is kept in sync with the Notifications page via the
-  // shared NotificationService.unreadCount$ observable.
-  notifications:  NotificationDto[] = [];
-  unreadCount     = 0;
-  showNotifPanel  = false;
+  // ── per-account dashboard panels (one entry per linked account) ───────
+  accountDashboards: AccountDashboard[] = [];
+
+  // ── cross-account totals for the summary cards ────────────────────────
+  summaryCards: SummaryCard[] = [];
+
+  // ── notifications ─────────────────────────────────────────────────────
+  notifications: NotificationDto[] = [];
+  unreadCount    = 0;
+  showNotifPanel = false;
 
   // ── state ─────────────────────────────────────────────────────────────
-  isLoading          = false;
-  errorMsg           = '';
-  currentMonth       = '';
-  currentMonthLabel  = '';
+  isLoading         = false;
+  errorMsg          = '';
+  currentMonth      = '';
+  currentMonthLabel = '';
 
   constructor(
-    private auth:       AuthService,
-    private svc:        DashboardService,
-    private notifSvc:   NotificationService,
-    private router:     Router
+    private auth:     AuthService,
+    private svc:      DashboardService,
+    private notifSvc: NotificationService,
+    private router:   Router
   ) {}
 
   ngOnInit(): void {
@@ -98,41 +117,29 @@ export class DashboardComponent implements OnInit {
     this.userId   = session.userId;
     this.userName = session.userName;
 
-    const now         = new Date();
-    const mm          = String(now.getMonth() + 1).padStart(2, '0');
-    this.currentMonth = now.getFullYear() + '-' + mm;
+    const now          = new Date();
+    const mm           = String(now.getMonth() + 1).padStart(2, '0');
+    this.currentMonth  = now.getFullYear() + '-' + mm;
     this.currentMonthLabel = now.toLocaleDateString('en-IN',
       { month: 'long', year: 'numeric' });
 
     if (this.role === 'User') {
       this.loadUserDashboard();
       this.loadNotifications();
-
-      // Subscribe to shared unread count so header bell stays in sync
-      // with any mark-as-read / delete actions done on the Notifications page
-      this.notifSvc.unreadCount$.subscribe(count => {
-        this.unreadCount = count;
-      });
+      this.notifSvc.unreadCount$.subscribe(count => { this.unreadCount = count; });
     }
   }
 
   // ── navigation ────────────────────────────────────────────────────────
   onPageChange(page: string): void {
     this.activePage = page;
-    // Reload notifications when the user navigates to the notifications page
-    // so the bell count and the page list are always in sync
-    if (page === 'notifications') {
-      this.loadNotifications();
-    }
+    if (page === 'notifications') this.loadNotifications();
   }
 
   // ── notifications ─────────────────────────────────────────────────────
   loadNotifications(): void {
     this.notifSvc.getNotifications().subscribe({
-      next: (data) => {
-        this.notifications = Array.isArray(data) ? data : [];
-        // unreadCount is updated automatically via the BehaviorSubject tap()
-      },
+      next:  (data) => { this.notifications = Array.isArray(data) ? data : []; },
       error: () => {}
     });
   }
@@ -150,16 +157,29 @@ export class DashboardComponent implements OnInit {
     return Math.floor(hrs / 24) + 'd ago';
   }
 
-  // ── user dashboard ────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════
+  //  DASHBOARD LOADING
+  // ══════════════════════════════════════════════════════════════════════
+
   loadUserDashboard(): void {
     this.isLoading = true;
     this.errorMsg  = '';
 
+    // Fetch both in parallel; build panels once both arrive
+    let monthlyDone   = false;
+    let categoryDone  = false;
+    const tryBuild    = () => {
+      if (monthlyDone && categoryDone) {
+        this.buildAllPanels();
+        this.isLoading = false;
+      }
+    };
+
     this.svc.getMonthlyReport(this.currentMonth).subscribe({
       next: (data) => {
         this.monthlyData = Array.isArray(data) ? data : [];
-        this.buildSummaryCards();
-        this.isLoading = false;
+        monthlyDone = true;
+        tryBuild();
       },
       error: (err: Error) => {
         this.errorMsg  = err.message || 'Failed to load dashboard data.';
@@ -168,13 +188,69 @@ export class DashboardComponent implements OnInit {
     });
 
     this.svc.getCategoryBreakdown(this.currentMonth).subscribe({
-      next: (data) => {
-        this.categoryData = Array.isArray(data) ? data : [];
-        this.buildCategoryCharts();
-      },
-      error: () => {}
+      next:  (data) => { this.categoryData = Array.isArray(data) ? data : []; categoryDone = true; tryBuild(); },
+      error: () => { categoryDone = true; tryBuild(); }
     });
   }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  PER-ACCOUNT PANEL BUILDER
+  // The key change: instead of combining all accounts into one set of
+  // charts, we derive one AccountDashboard per account so the template
+  // can render them in separate, clearly labelled cards.
+  // ══════════════════════════════════════════════════════════════════════
+
+  private buildAllPanels(): void {
+    this.buildSummaryCards();
+
+    // Collect unique accounts from monthly data (preserves API ordering)
+    const accountIds = [...new Set(this.monthlyData.map(r => r.accountId))];
+
+    this.accountDashboards = accountIds.map(acctId => {
+      const monthly = this.monthlyData.filter(r => r.accountId === acctId);
+
+      // There will be one MonthlyReportDto per account from the API
+      const row   = monthly[0];
+      const inc   = row?.totalIncome  ?? 0;
+      const exp   = row?.totalExpense ?? 0;
+      const net   = row?.netAmount    ?? (inc - exp);
+      const name  = row?.accountName  ?? `Account ${acctId}`;
+
+      // Budget utilisation = expenses as % of income for this account
+      const pct   = inc > 0 ? Math.min(100, Math.round((exp / inc) * 100)) : 0;
+
+      // Category data scoped to this account
+      const acctCats = this.categoryData.filter(c => c.accountId === acctId);
+
+      const expenses = acctCats
+        .filter(c => c.type === 'Expense')
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 6);
+
+      const incomes = acctCats
+        .filter(c => c.type === 'Income')
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 6);
+
+      return {
+        accountId:   acctId,
+        accountName: name,
+        totalIncome:  inc,
+        totalExpense: exp,
+        netAmount:    net,
+        utilPct:      pct,
+        utilColor:    this.pctColor(pct),
+        topExpenses:  expenses,
+        topIncomes:   incomes,
+        maxExpense:   expenses.length ? expenses[0].total : 1,
+        maxIncome:    incomes.length  ? incomes[0].total  : 1
+      } as AccountDashboard;
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  SUMMARY CARDS — cross-account totals (unchanged behaviour)
+  // ══════════════════════════════════════════════════════════════════════
 
   private buildSummaryCards(): void {
     const inc  = this.monthlyData.reduce((s, r) => s + r.totalIncome,  0);
@@ -197,29 +273,11 @@ export class DashboardComponent implements OnInit {
     ];
   }
 
-  private buildCategoryCharts(): void {
-    const exp = this.categoryData
-      .filter(c => c.type === 'Expense').sort((a,b) => b.total - a.total).slice(0, 6);
-    const inc = this.categoryData
-      .filter(c => c.type === 'Income').sort((a,b) => b.total - a.total).slice(0, 6);
+  // ── Helpers ───────────────────────────────────────────────────────────
 
-    this.topExpenses = exp;
-    this.topIncomes  = inc;
-    this.maxExpense  = exp.length ? exp[0].total : 1;
-    this.maxIncome   = inc.length ? inc[0].total : 1;
-  }
-
-  get budgetUtilizationPct(): number {
-    const exp = this.monthlyData.reduce((s, r) => s + r.totalExpense, 0);
-    const inc = this.monthlyData.reduce((s, r) => s + r.totalIncome,  0);
-    if (inc <= 0) return 0;
-    return Math.min(100, Math.round((exp / inc) * 100));
-  }
-
-  get utilizationColor(): string {
-    const p = this.budgetUtilizationPct;
-    if (p >= 90) return 'var(--clr-error)';
-    if (p >= 70) return 'var(--clr-warning)';
+  private pctColor(pct: number): string {
+    if (pct >= 90) return 'var(--clr-error)';
+    if (pct >= 70) return 'var(--clr-warning)';
     return 'var(--clr-success)';
   }
 
@@ -235,9 +293,11 @@ export class DashboardComponent implements OnInit {
   }
 
   formatAmount(v: number): string {
-    if (v >= 100000) return '₹' + (v / 100000).toFixed(1) + 'L';
-    if (v >= 1000)   return '₹' + (v / 1000).toFixed(1) + 'K';
-    return '₹' + v.toFixed(0);
+    const abs  = Math.abs(v);
+    const sign = v < 0 ? '-' : '';
+    if (abs >= 100000) return sign + '₹' + (abs / 100000).toFixed(1) + 'L';
+    if (abs >= 1000)   return sign + '₹' + (abs / 1000).toFixed(1) + 'K';
+    return sign + '₹' + abs.toFixed(0);
   }
 
   onLogout(): void {

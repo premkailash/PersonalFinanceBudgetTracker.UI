@@ -289,7 +289,7 @@
           <div class="field-group">
             <label class="field-label">Type <span class="req">*</span></label>
             <select class="field-select" [class.invalid]="typeInvalid" [(ngModel)]="form.type">
-              <option *ngFor="let t of txTypes" [value]="t">{{ t }}</option>
+              <option *ngFor="let t of Types" [value]="t">{{ t }}</option>
             </select>
             <div *ngIf="typeInvalid" class="field-error">Required.</div>
           </div>
