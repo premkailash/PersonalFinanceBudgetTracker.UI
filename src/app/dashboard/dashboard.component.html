@@ -360,11 +360,11 @@
             [userId]="userId">
           </app-transactions>
     
-          <div *ngIf="activePage === 'data-export'" class="placeholder-page">
-            <div class="placeholder-icon">📤</div>
-            <h2 class="placeholder-title">Data Export</h2>
-            <p class="placeholder-text">Request CSV or PDF reports for your transactions and budgets.</p>
-          </div>
+          <!-- Data Export page (real component) -->
+          <app-data-export
+            *ngIf="activePage === 'data-export'"
+            [userId]="userId">
+          </app-data-export>
     
           <!-- Notifications page (real component) -->
           <app-notifications

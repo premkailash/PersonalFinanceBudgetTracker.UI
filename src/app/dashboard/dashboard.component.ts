@@ -14,6 +14,7 @@ import { BudgetsComponent }        from '../pages/budgets/budgets.component';
 import { TransactionsComponent }   from '../pages/transactions/transactions.component';
 import { NotificationsComponent }  from '../pages/notifications/notifications.component';
 import { ReportsComponent }        from '../pages/reports/reports.component';
+import { DataExportComponent }     from '../pages/data-export/data-export.component';
 
 interface NavItem { label: string; icon: string; page: string; }
 
@@ -65,7 +66,8 @@ const ADMIN_NAV: NavItem[] = [
     BudgetsComponent,
     TransactionsComponent,
     NotificationsComponent,
-    ReportsComponent
+    ReportsComponent,
+    DataExportComponent
   ],
   templateUrl: './dashboard.component.html'
 })

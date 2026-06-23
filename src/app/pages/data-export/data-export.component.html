@@ -1,0 +1,342 @@
+<!-- ══════════════════════════════════════════════════════════
+     DATA EXPORT PAGE
+     ══════════════════════════════════════════════════════════ -->
+
+     <div class="page-header">
+        <h1 class="page-title">Data Export</h1>
+        <p class="page-subtitle">Request CSV or PDF reports for your transactions and budgets.</p>
+      </div>
+      
+      <!-- ══════════════════════
+           REQUEST FORM CARD
+           ══════════════════════ -->
+      <div class="export-form-card">
+      
+        <div style="font-family:var(--font-display);font-size:0.95rem;color:var(--clr-text);
+                    margin-bottom:18px;display:flex;align-items:center;gap:8px">
+          📤 New Export Request
+        </div>
+      
+        <!-- Submit / error alert -->
+        <div *ngIf="submitAlert" class="modal-alert" [ngClass]="submitAlertType"
+             style="margin-bottom:16px">
+          {{ submitAlert }}
+        </div>
+      
+        <div class="export-form-grid">
+      
+          <!-- Account -->
+          <div class="report-filter-field">
+            <label class="report-filter-label">Account <span style="color:var(--clr-gold)">*</span></label>
+            <select class="field-select" [class.invalid]="acctInvalid" [(ngModel)]="form.accountId">
+              <option [ngValue]="null" disabled>
+                {{ isAcctLoading ? 'Loading…' : 'Select account' }}
+              </option>
+              <option *ngFor="let a of accounts" [ngValue]="a.accountId">
+                {{ a.accountName }} ({{ a.accountType }})
+              </option>
+            </select>
+            <div *ngIf="acctInvalid" class="field-error">Please select an account.</div>
+          </div>
+      
+          <!-- Report Type -->
+          <div class="report-filter-field">
+            <label class="report-filter-label">Report Type <span style="color:var(--clr-gold)">*</span></label>
+            <select class="field-select" [class.invalid]="typeInvalid" [(ngModel)]="form.reportType">
+              <option value="">Select type</option>
+              <option *ngFor="let t of reportTypes" [value]="t">{{ t }}</option>
+            </select>
+            <div *ngIf="typeInvalid" class="field-error">Please select a report type.</div>
+          </div>
+      
+          <!-- From Date -->
+          <div class="report-filter-field">
+            <label class="report-filter-label">From Date <span style="color:var(--clr-gold)">*</span></label>
+            <input class="field-input" [class.invalid]="fromInvalid || dateRangeInvalid"
+                   type="date" [(ngModel)]="form.fromDate" [max]="form.toDate || todayISO()">
+            <div *ngIf="fromInvalid" class="field-error">From Date is required.</div>
+          </div>
+      
+          <!-- To Date -->
+          <div class="report-filter-field">
+            <label class="report-filter-label">To Date <span style="color:var(--clr-gold)">*</span></label>
+            <input class="field-input" [class.invalid]="toInvalid || dateRangeInvalid"
+                   type="date" [(ngModel)]="form.toDate" [min]="form.fromDate" [max]="todayISO()">
+            <div *ngIf="toInvalid" class="field-error">To Date is required.</div>
+          </div>
+      
+          <!-- Report Options -->
+          <div class="report-filter-field">
+            <label class="report-filter-label">Format <span style="color:var(--clr-gold)">*</span></label>
+            <select class="field-select" [class.invalid]="optInvalid" [(ngModel)]="form.reportOptions">
+              <option value="">Select format</option>
+              <option *ngFor="let o of reportOptions" [value]="o">{{ o }}</option>
+            </select>
+            <div *ngIf="optInvalid" class="field-error">Please select a format.</div>
+          </div>
+      
+        </div>
+      
+        <!-- Date range cross-field validation -->
+        <div *ngIf="dateRangeInvalid"
+             style="font-size:0.8rem;color:var(--clr-error);
+                    background:var(--clr-error-bg);border-left:3px solid var(--clr-error);
+                    padding:8px 12px;border-radius:4px;margin-bottom:14px;display:flex;align-items:center;gap:6px">
+          ⚠ From Date must be earlier than To Date.
+        </div>
+      
+        <!-- Action buttons -->
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+      
+          <button class="btn-modal-primary"
+                  style="min-width:140px;height:42px"
+                  (click)="onSubmit()"
+                  [disabled]="isSubmitting">
+            <span *ngIf="isSubmitting" class="spin"></span>
+            {{ isSubmitting ? 'Submitting…' : '📤 Submit Request' }}
+          </button>
+      
+          <button class="btn-modal-secondary"
+                  style="height:42px"
+                  (click)="onClear()"
+                  [disabled]="isSubmitting">
+            ✕ Clear
+          </button>
+      
+        </div>
+      
+      </div>
+      <!-- /form card -->
+      
+      
+      <!-- ══════════════════════
+           EXPORT HISTORY TABLE
+           ══════════════════════ -->
+      <div class="export-table-wrap">
+      
+        <div class="export-table-header">
+          <span class="export-table-title">📋 Export History</span>
+          <button class="month-nav-btn" (click)="loadExports()"
+                  [disabled]="isListLoading" title="Refresh list"
+                  style="font-size:0.85rem;width:auto;padding:0 10px">
+            <span *ngIf="isListLoading" class="spin" style="width:12px;height:12px;border-width:2px"></span>
+            <span *ngIf="!isListLoading">↻ Refresh</span>
+          </button>
+        </div>
+      
+        <!-- List error -->
+        <div *ngIf="listError" class="alert alert-error"
+             style="margin:16px;border-radius:var(--radius-sm)">
+          {{ listError }}
+          <button (click)="loadExports()"
+                  style="margin-left:8px;background:none;border:none;cursor:pointer;
+                         color:inherit;text-decoration:underline;font-size:0.8rem">
+            Retry
+          </button>
+        </div>
+      
+        <!-- Loading skeletons -->
+        <ng-container *ngIf="isListLoading">
+          <div *ngFor="let _ of [1,2,3]"
+               class="table-row-skeleton" style="padding:14px 20px">
+            <div class="skeleton" style="flex:1.2"></div>
+            <div class="skeleton" style="flex:0.8"></div>
+            <div class="skeleton" style="flex:0.8"></div>
+            <div class="skeleton" style="flex:0.5"></div>
+            <div class="skeleton" style="flex:0.6"></div>
+          </div>
+        </ng-container>
+      
+        <!-- Empty state -->
+        <div *ngIf="!isListLoading && exports.length === 0 && !listError"
+             class="table-empty">
+          <div class="table-empty-icon">📭</div>
+          <div class="table-empty-title">No export requests yet</div>
+          <div class="table-empty-text">
+            Use the form above to request your first Transaction or Budget report.
+          </div>
+        </div>
+      
+        <!-- History table -->
+        <div *ngIf="!isListLoading && exports.length > 0" style="overflow-x:auto">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Report Type</th>
+                <th>From Date</th>
+                <th>To Date</th>
+                <th>Format</th>
+                <th>Requested On</th>
+                <th class="center">View Report</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let exp of exports">
+      
+                <!-- Report Type chip -->
+                <td>
+                  <span class="report-type-chip" [ngClass]="typeChipClass(exp.reportType)">
+                    {{ typeIcon(exp.reportType) }} {{ exp.reportType }}
+                  </span>
+                </td>
+      
+                <!-- From Date -->
+                <td style="color:var(--clr-text-muted);font-size:0.85rem;white-space:nowrap">
+                  {{ formatDate(exp.fromDate) }}
+                </td>
+      
+                <!-- To Date -->
+                <td style="color:var(--clr-text-muted);font-size:0.85rem;white-space:nowrap">
+                  {{ formatDate(exp.toDate) }}
+                </td>
+      
+                <!-- Format chip -->
+                <td>
+                  <span class="format-chip" [ngClass]="formatChipClass(exp.reportOptions)">
+                    {{ exp.reportOptions === 'CSV' ? '📄' : '📑' }} {{ exp.reportOptions }}
+                  </span>
+                </td>
+      
+                <!-- Requested On -->
+                <td style="font-size:0.8rem;color:var(--clr-text-subtle);white-space:nowrap">
+                  {{ formatDateTime(exp.timestamp) }}
+                </td>
+      
+                <!-- View Report -->
+                <td class="center">
+      
+                  <!-- Only today's exports show the View button -->
+                  <button *ngIf="isToday(exp.timestamp)"
+                          class="btn-view-report"
+                          (click)="openViewModal(exp)"
+                          title="View or download report">
+                    👁 View Report
+                  </button>
+      
+                  <!-- Past exports show a greyed-out placeholder -->
+                  <span *ngIf="!isToday(exp.timestamp)"
+                        style="font-size:0.75rem;color:var(--clr-text-subtle)">
+                    —
+                  </span>
+      
+                </td>
+      
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      
+      </div>
+      <!-- /history table -->
+      
+      
+      <!-- ══════════════════════
+           VIEW REPORT MODAL
+           ══════════════════════ -->
+      <div *ngIf="viewingExport" class="export-view-overlay" (click)="closeViewModal()">
+        <div class="export-view-box" (click)="$event.stopPropagation()">
+      
+          <!-- Header -->
+          <div class="modal-header">
+            <span class="modal-title">
+              {{ typeIcon(viewingExport.reportType) }}
+              View Report — {{ viewingExport.reportType }} ({{ viewingExport.reportOptions }})
+            </span>
+            <button class="modal-close" (click)="closeViewModal()">✕</button>
+          </div>
+      
+          <div class="modal-body">
+      
+            <!-- Report meta -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;
+                        background:var(--clr-surface-2);border:1px solid var(--clr-border);
+                        border-radius:var(--radius-sm);padding:14px;margin-bottom:16px">
+              <div>
+                <div class="report-filter-label">Report Type</div>
+                <div style="font-weight:600;color:var(--clr-text);margin-top:3px">
+                  {{ viewingExport.reportType }}
+                </div>
+              </div>
+              <div>
+                <div class="report-filter-label">Format</div>
+                <span class="format-chip" [ngClass]="formatChipClass(viewingExport.reportOptions)"
+                      style="margin-top:3px;display:inline-flex">
+                  {{ viewingExport.reportOptions }}
+                </span>
+              </div>
+              <div>
+                <div class="report-filter-label">From</div>
+                <div style="font-weight:500;color:var(--clr-text-muted);margin-top:3px">
+                  {{ formatDate(viewingExport.fromDate) }}
+                </div>
+              </div>
+              <div>
+                <div class="report-filter-label">To</div>
+                <div style="font-weight:500;color:var(--clr-text-muted);margin-top:3px">
+                  {{ formatDate(viewingExport.toDate) }}
+                </div>
+              </div>
+            </div>
+      
+            <!-- Polling spinner -->
+            <div *ngIf="isPolling"
+                 style="display:flex;align-items:center;gap:10px;
+                        color:var(--clr-text-muted);font-size:0.875rem;padding:12px 0">
+              <span class="spin"></span> Checking report status…
+            </div>
+      
+            <!-- Poll error -->
+            <div *ngIf="pollError && !isPolling" class="modal-alert error">
+              {{ pollError }}
+            </div>
+      
+            <!-- Report ready -->
+            <div *ngIf="pollResult && !isPolling && !pollError">
+      
+              <div *ngIf="pollResult.isGenerated && pollResult.reportLink"
+                   style="display:flex;flex-direction:column;align-items:center;
+                          gap:14px;padding:16px 0;text-align:center">
+                <div style="font-size:2rem">✅</div>
+                <div style="font-weight:600;color:var(--clr-success)">
+                  Your report is ready!
+                </div>
+                <div style="font-size:0.82rem;color:var(--clr-text-muted)">
+                  Click the button below to open the report in a new tab.
+                </div>
+                <button class="btn-view-report"
+                        style="font-size:0.9rem;padding:10px 24px"
+                        (click)="openReportLink()">
+                  📥 Open Report ({{ pollResult.reportLink | slice:0:40 }}…)
+                </button>
+                <div style="font-size:0.72rem;color:var(--clr-text-subtle);word-break:break-all">
+                  {{ pollResult.reportLink }}
+                </div>
+              </div>
+      
+              <!-- Still processing -->
+              <div *ngIf="!pollResult.isGenerated || !pollResult.reportLink"
+                   style="display:flex;flex-direction:column;align-items:center;
+                          gap:12px;padding:16px 0;text-align:center">
+                <div style="font-size:2rem">⏳</div>
+                <div style="font-weight:600;color:var(--clr-text-muted)">
+                  Report is being generated
+                </div>
+                <div style="font-size:0.82rem;color:var(--clr-text-subtle)">
+                  Your report is still processing. Please try again in a moment.
+                </div>
+                <button class="btn-modal-secondary" (click)="openViewModal(viewingExport)">
+                  ↻ Check Again
+                </button>
+              </div>
+      
+            </div>
+      
+          </div>
+      
+          <div class="modal-footer">
+            <button class="btn-modal-secondary" (click)="closeViewModal()">Close</button>
+          </div>
+      
+        </div>
+      </div>
+      

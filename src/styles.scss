@@ -2381,3 +2381,133 @@ a:hover { color: var(--clr-gold-light); }
 .report-hint-title { font-size: 1rem;   color: var(--clr-text-muted); margin-bottom: 4px; }
 .report-hint-text  { font-size: 0.85rem; }
 
+
+/* ============================================================
+   DATA EXPORT PAGE
+   ============================================================ */
+
+/* Request form card */
+.export-form-card {
+  background:    var(--clr-surface);
+  border:        1px solid var(--clr-border);
+  border-radius: var(--radius-md);
+  padding:       24px;
+  margin-bottom: 28px;
+}
+
+.export-form-grid {
+  display:               grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap:                   16px;
+  align-items:           end;
+  margin-bottom:         20px;
+}
+
+@media (max-width: 640px) {
+  .export-form-grid { grid-template-columns: 1fr; }
+}
+
+/* Export history table */
+.export-table-wrap {
+  background:    var(--clr-surface);
+  border:        1px solid var(--clr-border);
+  border-radius: var(--radius-md);
+  overflow:      hidden;
+}
+
+.export-table-header {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  padding:         14px 20px;
+  border-bottom:   1px solid var(--clr-border);
+  background:      var(--clr-surface-2);
+}
+
+.export-table-title {
+  font-family:   var(--font-display);
+  font-size:     0.95rem;
+  color:         var(--clr-text);
+  font-weight:   600;
+}
+
+/* Report-type chip */
+.report-type-chip {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           5px;
+  font-size:     0.72rem;
+  font-weight:   700;
+  padding:       3px 9px;
+  border-radius: 99px;
+}
+
+.report-type-chip.transaction { background: rgba(74,144,217,0.12); color: #4A90D9; }
+.report-type-chip.budget      { background: rgba(201,168,76,0.12); color: var(--clr-gold); }
+
+/* Format chip */
+.format-chip {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           4px;
+  font-size:     0.7rem;
+  font-weight:   700;
+  padding:       2px 8px;
+  border-radius: 4px;
+  letter-spacing:0.04em;
+}
+
+.format-chip.csv { background: rgba(62,207,142,0.10); color: var(--clr-success); }
+.format-chip.pdf { background: rgba(240,79,89,0.10);  color: var(--clr-error);   }
+
+/* View report button */
+.btn-view-report {
+  display:         inline-flex;
+  align-items:     center;
+  gap:             5px;
+  padding:         5px 12px;
+  font-size:       0.78rem;
+  font-weight:     600;
+  font-family:     var(--font-body);
+  background:      var(--clr-gold);
+  color:           #0D0F14;
+  border:          none;
+  border-radius:   var(--radius-sm);
+  cursor:          pointer;
+  white-space:     nowrap;
+  transition:      opacity var(--t-fast), transform var(--t-fast);
+}
+
+.btn-view-report:hover:not(:disabled) { opacity: 0.85; transform: translateY(-1px); }
+.btn-view-report:disabled             { opacity: 0.4;  cursor: not-allowed; }
+
+/* Processing badge */
+.processing-badge {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           5px;
+  font-size:     0.72rem;
+  color:         var(--clr-text-subtle);
+}
+
+/* View modal overlay */
+.export-view-overlay {
+  position:         fixed;
+  inset:            0;
+  background:       rgba(0,0,0,0.72);
+  z-index:          1000;
+  display:          flex;
+  align-items:      center;
+  justify-content:  center;
+  padding:          20px;
+}
+
+.export-view-box {
+  background:    var(--clr-surface);
+  border:        1px solid var(--clr-border);
+  border-radius: var(--radius-lg);
+  width:         100%;
+  max-width:     480px;
+  box-shadow:    0 24px 64px rgba(0,0,0,0.5);
+}
+
