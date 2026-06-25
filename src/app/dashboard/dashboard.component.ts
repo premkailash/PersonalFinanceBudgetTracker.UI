@@ -15,6 +15,8 @@ import { TransactionsComponent }   from '../pages/transactions/transactions.comp
 import { NotificationsComponent }  from '../pages/notifications/notifications.component';
 import { ReportsComponent }        from '../pages/reports/reports.component';
 import { DataExportComponent }     from '../pages/data-export/data-export.component';
+import { AdminCategoryComponent }  from '../pages/admin-category/admin-category.component';
+import { AdminCategoryService }    from '../services/admin-category.service';
 
 interface NavItem { label: string; icon: string; page: string; }
 
@@ -50,10 +52,11 @@ const USER_NAV: NavItem[] = [
 ];
 
 const ADMIN_NAV: NavItem[] = [
-  { label: 'Dashboard',           icon: '📊', page: 'dashboard'           },
-  { label: 'Log Management',      icon: '📋', page: 'log-management'      },
-  { label: 'Category Management', icon: '🏷️', page: 'category-management' },
-  { label: 'User Management',     icon: '👥', page: 'user-management'     },
+  { label: 'Dashboard',      icon: '📊', page: 'dashboard'           },
+  { label: 'Category',       icon: '🏷️', page: 'category-management' },
+  { label: 'Logs',           icon: '📋', page: 'log-management'      },
+  { label: 'Default Budget', icon: '💰', page: 'default-budget'      },
+  { label: 'Users',          icon: '👥', page: 'user-management'     },
 ];
 
 @Component({
@@ -67,7 +70,8 @@ const ADMIN_NAV: NavItem[] = [
     TransactionsComponent,
     NotificationsComponent,
     ReportsComponent,
-    DataExportComponent
+    DataExportComponent,
+    AdminCategoryComponent
   ],
   templateUrl: './dashboard.component.html'
 })
@@ -104,11 +108,20 @@ export class DashboardComponent implements OnInit {
   currentMonth      = '';
   currentMonthLabel = '';
 
+  // ── admin ─────────────────────────────────────────────────────────────
+  userCount              = 0;
+  totalAccounts          = 0;
+  activeAccounts         = 0;
+  inactiveAccounts       = 0;
+  isAccountCountLoading  = false;
+  accountCountError      = '';
+
   constructor(
-    private auth:     AuthService,
-    private svc:      DashboardService,
-    private notifSvc: NotificationService,
-    private router:   Router
+    private auth:       AuthService,
+    private svc:        DashboardService,
+    private notifSvc:   NotificationService,
+    private adminSvc:   AdminCategoryService,
+    private router:     Router
   ) {}
 
   ngOnInit(): void {
@@ -129,6 +142,10 @@ export class DashboardComponent implements OnInit {
       this.loadUserDashboard();
       this.loadNotifications();
       this.notifSvc.unreadCount$.subscribe(count => { this.unreadCount = count; });
+    }
+
+    if (this.role === 'Admin') {
+      this.loadAdminDashboard();
     }
   }
 
@@ -162,6 +179,31 @@ export class DashboardComponent implements OnInit {
   // ══════════════════════════════════════════════════════════════════════
   //  DASHBOARD LOADING
   // ══════════════════════════════════════════════════════════════════════
+
+  // ── admin dashboard ───────────────────────────────────────────────────
+  loadAdminDashboard(): void {
+    // Load user count
+    this.adminSvc.getUsers().subscribe({
+      next:  (users) => { this.userCount = Array.isArray(users) ? users.length : 0; },
+      error: () => {}
+    });
+
+    // Load account count from GET /api/accounts/admin/count
+    this.isAccountCountLoading = true;
+    this.accountCountError     = '';
+    this.adminSvc.getAccountCount().subscribe({
+      next: (data) => {
+        this.totalAccounts         = data.totalAccounts;
+        this.activeAccounts        = data.activeAccounts;
+        this.inactiveAccounts      = data.inactiveAccounts;
+        this.isAccountCountLoading = false;
+      },
+      error: (err: Error) => {
+        this.accountCountError     = err.message;
+        this.isAccountCountLoading = false;
+      }
+    });
+  }
 
   loadUserDashboard(): void {
     this.isLoading = true;

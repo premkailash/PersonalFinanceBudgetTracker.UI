@@ -1,0 +1,340 @@
+<!-- ══════════════════════════════════════════════════════════
+     ADMIN — CATEGORY MANAGEMENT PAGE
+     ══════════════════════════════════════════════════════════ -->
+
+     <div class="page-header">
+        <h1 class="page-title">Category Management</h1>
+        <p class="page-subtitle">Manage Income and Expense categories used across the platform.</p>
+      </div>
+      
+      <!-- Toolbar: search + filter + create button -->
+      <div class="page-toolbar" style="flex-wrap:wrap;gap:10px">
+      
+        <!-- Search -->
+        <div class="search-input-wrap" style="flex:1;min-width:180px;max-width:300px">
+          <span class="search-icon">🔎</span>
+          <input class="search-input" type="text"
+                 [(ngModel)]="searchText"
+                 placeholder="Search category name…">
+          <button *ngIf="searchText" class="search-clear" (click)="searchText = ''">✕</button>
+        </div>
+      
+        <!-- Type filter -->
+        <select class="field-select" [(ngModel)]="filterType"
+                style="width:auto;min-width:140px;height:38px">
+          <option value="">All Types</option>
+          <option value="Income">Income only</option>
+          <option value="Expense">Expense only</option>
+        </select>
+      
+        <span style="font-size:0.83rem;color:var(--clr-text-muted);align-self:center">
+          {{ filteredCategories.length }} category{{ filteredCategories.length !== 1 ? 'ies' : 'y' }}
+        </span>
+      
+        <button class="btn-create" (click)="openCreateModal()">＋ New Category</button>
+      
+      </div>
+      
+      <!-- List error -->
+      <div *ngIf="listError" class="alert alert-error" style="margin-bottom:16px">
+        {{ listError }}
+        <button (click)="loadCategories()"
+                style="margin-left:8px;background:none;border:none;cursor:pointer;
+                       color:inherit;text-decoration:underline;font-size:0.8rem">
+          Retry
+        </button>
+      </div>
+      
+      <!-- ── Category table ── -->
+      <div class="data-table-wrap">
+      
+        <!-- Loading skeletons -->
+        <ng-container *ngIf="isListLoading">
+          <div *ngFor="let _ of [1,2,3,4,5]" class="table-row-skeleton">
+            <div class="skeleton" style="flex:0.3"></div>
+            <div class="skeleton" style="flex:1.2"></div>
+            <div class="skeleton" style="flex:0.7"></div>
+            <div class="skeleton" style="flex:0.5"></div>
+            <div class="skeleton" style="flex:0.5"></div>
+            <div class="skeleton" style="flex:0.8"></div>
+          </div>
+        </ng-container>
+      
+        <!-- Empty state -->
+        <div *ngIf="!isListLoading && filteredCategories.length === 0 && !listError"
+             class="table-empty">
+          <div class="table-empty-icon">🏷️</div>
+          <div class="table-empty-title">
+            {{ searchText || filterType ? 'No categories match your filter' : 'No categories yet' }}
+          </div>
+          <div class="table-empty-text">
+            {{ searchText || filterType ? 'Try clearing the search or filter.' : 'Click "+ New Category" to add the first one.' }}
+          </div>
+        </div>
+      
+        <!-- Table -->
+        <table *ngIf="!isListLoading && filteredCategories.length > 0" class="data-table">
+          <thead>
+            <tr>
+              <th style="width:60px" class="center">Icon</th>
+              <th>Name</th>
+              <th>Type</th>
+              <th class="center">Default</th>
+              <th class="center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let cat of filteredCategories">
+      
+              <!-- Icon -->
+              <td class="center" style="font-size:1.4rem">
+                {{ cat.icon || '🏷️' }}
+              </td>
+      
+              <!-- Name -->
+              <td>
+                <span style="font-weight:600;color:var(--clr-text)">{{ cat.name }}</span>
+                <span style="font-size:0.7rem;color:var(--clr-text-subtle);margin-left:6px">
+                  #{{ cat.categoryId }}
+                </span>
+              </td>
+      
+              <!-- Type badge -->
+              <td>
+                <span class="tx-type" [ngClass]="typeClass(cat.type)">
+                  {{ cat.type === 'Income' ? '▲' : '▼' }} {{ cat.type }}
+                </span>
+              </td>
+      
+              <!-- Is Default -->
+              <td class="center">
+                <span *ngIf="cat.isDefault"
+                      style="font-size:0.75rem;font-weight:700;color:var(--clr-gold);
+                             background:rgba(201,168,76,0.12);padding:2px 8px;border-radius:99px">
+                  ★ Default
+                </span>
+                <span *ngIf="!cat.isDefault"
+                      style="color:var(--clr-text-subtle);font-size:0.8rem">—</span>
+              </td>
+      
+              <!-- Actions -->
+              <td class="center">
+                <div class="row-actions">
+                  <button class="icon-btn edit"   title="Edit"   (click)="openEditModal(cat)">✏️</button>
+                  <button class="icon-btn delete" title="Delete" (click)="openDeleteModal(cat)">🗑️</button>
+                </div>
+              </td>
+      
+            </tr>
+          </tbody>
+        </table>
+      
+      </div>
+      <!-- /table -->
+      
+      
+      <!-- ══════════════════════════════════════════════════════════
+           MODAL: CREATE CATEGORY
+           ══════════════════════════════════════════════════════════ -->
+      <div *ngIf="modalMode === 'create'" class="modal-overlay" (click)="closeModal()">
+        <div class="modal-box" (click)="$event.stopPropagation()" style="max-width:460px">
+      
+          <div class="modal-header">
+            <span class="modal-title">🏷️ New Category</span>
+            <button class="modal-close" (click)="closeModal()">✕</button>
+          </div>
+      
+          <div class="modal-body">
+      
+            <div *ngIf="modalAlert" class="modal-alert" [ngClass]="modalAlertType">
+              {{ modalAlert }}
+            </div>
+      
+            <!-- Name -->
+            <div class="field-group">
+              <label class="field-label">Category Name <span class="req">*</span></label>
+              <input class="field-input" [class.invalid]="nameInvalid"
+                     type="text" [(ngModel)]="form.name"
+                     placeholder="e.g. Food, Transport, Salary"
+                     maxlength="50" autofocus>
+              <div *ngIf="nameInvalid" class="field-error">Name is required.</div>
+            </div>
+      
+            <!-- Type + Icon -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      
+              <div class="field-group">
+                <label class="field-label">Type <span class="req">*</span></label>
+                <select class="field-select" [class.invalid]="typeInvalid" [(ngModel)]="form.type">
+                  <option value="">Select type</option>
+                  <option *ngFor="let t of types" [value]="t">{{ t }}</option>
+                </select>
+                <div *ngIf="typeInvalid" class="field-error">Type is required.</div>
+              </div>
+      
+              <div class="field-group">
+                <label class="field-label">
+                  Icon
+                  <span style="font-size:0.68rem;color:var(--clr-text-subtle);font-weight:400;
+                               text-transform:none;letter-spacing:0;margin-left:4px">
+                    (emoji or text)
+                  </span>
+                </label>
+                <input class="field-input" type="text" [(ngModel)]="form.icon"
+                       placeholder="🍔 or leave blank" maxlength="10">
+              </div>
+      
+            </div>
+      
+            <!-- IsDefault checkbox -->
+            <div class="field-group">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;
+                            font-size:0.875rem;color:var(--clr-text-muted)">
+                <input type="checkbox" [(ngModel)]="form.isDefault"
+                       style="width:16px;height:16px;accent-color:var(--clr-gold);cursor:pointer">
+                <span>
+                  Mark as <strong style="color:var(--clr-gold)">Default</strong> category
+                  <span style="font-size:0.75rem;color:var(--clr-text-subtle);margin-left:4px">
+                    (automatically suggested when users set up budgets)
+                  </span>
+                </span>
+              </label>
+            </div>
+      
+          </div>
+      
+          <div class="modal-footer">
+            <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">
+              Clear
+            </button>
+            <button class="btn-modal-primary" (click)="onCreateSave()" [disabled]="isSubmitting">
+              <span *ngIf="isSubmitting" class="spin"></span>
+              {{ isSubmitting ? 'Saving…' : 'Save Category' }}
+            </button>
+          </div>
+      
+        </div>
+      </div>
+      
+      
+      <!-- ══════════════════════════════════════════════════════════
+           MODAL: EDIT CATEGORY
+           ══════════════════════════════════════════════════════════ -->
+      <div *ngIf="modalMode === 'edit'" class="modal-overlay" (click)="closeModal()">
+        <div class="modal-box" (click)="$event.stopPropagation()" style="max-width:460px">
+      
+          <div class="modal-header">
+            <span class="modal-title">✏️ Edit Category</span>
+            <button class="modal-close" (click)="closeModal()">✕</button>
+          </div>
+      
+          <div class="modal-body">
+      
+            <div *ngIf="modalAlert" class="modal-alert" [ngClass]="modalAlertType">
+              {{ modalAlert }}
+            </div>
+      
+            <!-- Category ID hint -->
+            <div style="font-size:0.72rem;color:var(--clr-text-subtle);margin-bottom:14px">
+              Category ID: <strong>{{ form.categoryId }}</strong>
+            </div>
+      
+            <!-- Name -->
+            <div class="field-group">
+              <label class="field-label">Category Name <span class="req">*</span></label>
+              <input class="field-input" [class.invalid]="nameInvalid"
+                     type="text" [(ngModel)]="form.name"
+                     placeholder="Category name" maxlength="50">
+              <div *ngIf="nameInvalid" class="field-error">Name is required.</div>
+            </div>
+      
+            <!-- Type + Icon -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      
+              <div class="field-group">
+                <label class="field-label">Type <span class="req">*</span></label>
+                <select class="field-select" [class.invalid]="typeInvalid" [(ngModel)]="form.type">
+                  <option value="">Select type</option>
+                  <option *ngFor="let t of types" [value]="t">{{ t }}</option>
+                </select>
+                <div *ngIf="typeInvalid" class="field-error">Type is required.</div>
+              </div>
+      
+              <div class="field-group">
+                <label class="field-label">Icon</label>
+                <input class="field-input" type="text" [(ngModel)]="form.icon"
+                       placeholder="🍔 or leave blank" maxlength="10">
+              </div>
+      
+            </div>
+      
+            <!-- IsDefault -->
+            <div class="field-group">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;
+                            font-size:0.875rem;color:var(--clr-text-muted)">
+                <input type="checkbox" [(ngModel)]="form.isDefault"
+                       style="width:16px;height:16px;accent-color:var(--clr-gold);cursor:pointer">
+                <span>
+                  Mark as <strong style="color:var(--clr-gold)">Default</strong> category
+                </span>
+              </label>
+            </div>
+      
+          </div>
+      
+          <div class="modal-footer">
+            <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">
+              Cancel
+            </button>
+            <button class="btn-modal-primary" (click)="onEditSave()" [disabled]="isSubmitting">
+              <span *ngIf="isSubmitting" class="spin"></span>
+              {{ isSubmitting ? 'Saving…' : 'Save Changes' }}
+            </button>
+          </div>
+      
+        </div>
+      </div>
+      
+      
+      <!-- ══════════════════════════════════════════════════════════
+           MODAL: DELETE CONFIRMATION
+           ══════════════════════════════════════════════════════════ -->
+      <div *ngIf="modalMode === 'delete'" class="modal-overlay" (click)="closeModal()">
+        <div class="modal-box modal-sm" (click)="$event.stopPropagation()">
+      
+          <div class="modal-header">
+            <span class="modal-title">Delete Category</span>
+            <button class="modal-close" (click)="closeModal()">✕</button>
+          </div>
+      
+          <div *ngIf="modalAlert" style="padding:0 24px">
+            <div class="modal-alert" [ngClass]="modalAlertType">{{ modalAlert }}</div>
+          </div>
+      
+          <div *ngIf="!modalAlert" class="delete-confirm-body">
+            <div class="delete-icon">🏷️</div>
+            <div class="delete-title">Delete this category?</div>
+            <p class="delete-text">
+              You are about to permanently delete
+              <span class="delete-account-name">
+                {{ deleteTarget?.icon || '' }} {{ deleteTarget?.name }}
+              </span>
+              ({{ deleteTarget?.type }}).
+              Any budgets or transactions using this category may be affected.
+            </p>
+          </div>
+      
+          <div class="modal-footer">
+            <button class="btn-modal-secondary" (click)="closeModal()" [disabled]="isSubmitting">
+              {{ modalAlert && modalAlertType === 'success' ? 'Close' : 'Cancel' }}
+            </button>
+            <button *ngIf="!modalAlert || modalAlertType === 'error'"
+                    class="btn-modal-danger" (click)="onDeleteConfirm()" [disabled]="isSubmitting">
+              <span *ngIf="isSubmitting" class="spin spin-light"></span>
+              {{ isSubmitting ? 'Deleting…' : 'Yes, Delete' }}
+            </button>
+          </div>
+      
+        </div>
+      </div>
+      

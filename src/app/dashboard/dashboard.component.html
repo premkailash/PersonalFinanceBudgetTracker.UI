@@ -282,15 +282,40 @@
     
             <div class="admin-grid">
               <div class="admin-metric-card">
-                <div class="admin-metric-value">—</div>
+                <div class="admin-metric-value">{{ userCount || '—' }}</div>
                 <div class="admin-metric-label">Total Registered Users</div>
-                <div class="admin-metric-note">From User Management API</div>
+                <div class="admin-metric-note">Live count from User Management API</div>
               </div>
-              <div class="admin-metric-card">
-                <div class="admin-metric-value">—</div>
+    
+              <!-- Active Accounts — live from GET /api/accounts/admin/count -->
+              <div class="admin-metric-card"
+                   [style.border-color]="accountCountError ? 'var(--clr-error)' : ''">
+                <div class="admin-metric-value">
+                  <span *ngIf="isAccountCountLoading" class="spin"
+                        style="width:20px;height:20px;border-width:2px;display:inline-block"></span>
+                  <span *ngIf="!isAccountCountLoading && !accountCountError"
+                        style="color:var(--clr-success)">
+                    {{ activeAccounts }}
+                  </span>
+                  <span *ngIf="accountCountError" style="color:var(--clr-error);font-size:1rem">!</span>
+                </div>
                 <div class="admin-metric-label">Active Accounts</div>
-                <div class="admin-metric-note">Aggregated across all users</div>
+                <div class="admin-metric-note" [style.color]="accountCountError ? 'var(--clr-error)' : ''">
+                  {{ accountCountError || 'Linked & active across all users' }}
+                </div>
               </div>
+    
+              <!-- Total Accounts metric -->
+              <div class="admin-metric-card">
+                <div class="admin-metric-value">
+                  <span *ngIf="isAccountCountLoading" class="spin"
+                        style="width:20px;height:20px;border-width:2px;display:inline-block"></span>
+                  <span *ngIf="!isAccountCountLoading">{{ totalAccounts || '—' }}</span>
+                </div>
+                <div class="admin-metric-label">Total Linked Accounts</div>
+                <div class="admin-metric-note">All accounts ever linked (active + inactive)</div>
+              </div>
+    
               <div class="admin-metric-card">
                 <div class="admin-metric-value">—</div>
                 <div class="admin-metric-label">Transactions This Month</div>
@@ -303,15 +328,132 @@
               </div>
               <div class="admin-metric-card">
                 <div class="admin-metric-value">—</div>
-                <div class="admin-metric-label">Pending Exports</div>
-                <div class="admin-metric-note">IsGenerated = false count</div>
-              </div>
-              <div class="admin-metric-card">
-                <div class="admin-metric-value">—</div>
                 <div class="admin-metric-label">Audit Log Entries</div>
                 <div class="admin-metric-note">From Log Management API</div>
               </div>
             </div>
+    
+            <!-- ── Accounts breakdown card ── -->
+            <div class="chart-card" style="margin-bottom:20px">
+              <div class="chart-card-title">
+                <span>🏦 Account Summary</span>
+                <button class="month-nav-btn"
+                        (click)="loadAdminDashboard()"
+                        [disabled]="isAccountCountLoading"
+                        title="Refresh account counts"
+                        style="width:auto;padding:0 10px;font-size:0.8rem">
+                  <span *ngIf="isAccountCountLoading" class="spin"
+                        style="width:12px;height:12px;border-width:2px;display:inline-block"></span>
+                  <span *ngIf="!isAccountCountLoading">↻ Refresh</span>
+                </button>
+              </div>
+    
+              <!-- Error state -->
+              <div *ngIf="accountCountError && !isAccountCountLoading"
+                   class="alert alert-error"
+                   style="margin-bottom:12px;border-radius:var(--radius-sm)">
+                {{ accountCountError }}
+                <button (click)="loadAdminDashboard()"
+                        style="margin-left:8px;background:none;border:none;cursor:pointer;
+                               color:inherit;text-decoration:underline;font-size:0.8rem">
+                  Retry
+                </button>
+              </div>
+    
+              <!-- Loading skeleton -->
+              <div *ngIf="isAccountCountLoading"
+                   style="display:flex;gap:16px;padding:12px 0">
+                <div class="skeleton" style="height:80px;flex:1;border-radius:8px"></div>
+                <div class="skeleton" style="height:80px;flex:1;border-radius:8px"></div>
+                <div class="skeleton" style="height:80px;flex:1;border-radius:8px"></div>
+              </div>
+    
+              <!-- Account count breakdown -->
+              <div *ngIf="!isAccountCountLoading && !accountCountError"
+                   style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px">
+    
+                <!-- Total -->
+                <div style="background:var(--clr-surface-2);border:1px solid var(--clr-border);
+                            border-radius:var(--radius-md);padding:18px 20px;text-align:center">
+                  <div style="font-size:2rem;font-weight:800;color:var(--clr-text);
+                              font-family:var(--font-display);line-height:1">
+                    {{ totalAccounts }}
+                  </div>
+                  <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;
+                              letter-spacing:0.07em;color:var(--clr-text-muted);margin-top:6px">
+                    Total Linked
+                  </div>
+                  <div style="font-size:0.72rem;color:var(--clr-text-subtle);margin-top:3px">
+                    All accounts ever linked
+                  </div>
+                </div>
+    
+                <!-- Active -->
+                <div style="background:rgba(62,207,142,0.06);
+                            border:1px solid rgba(62,207,142,0.3);
+                            border-radius:var(--radius-md);padding:18px 20px;text-align:center">
+                  <div style="font-size:2rem;font-weight:800;color:var(--clr-success);
+                              font-family:var(--font-display);line-height:1">
+                    {{ activeAccounts }}
+                  </div>
+                  <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;
+                              letter-spacing:0.07em;color:var(--clr-success);margin-top:6px">
+                    Active
+                  </div>
+                  <div style="font-size:0.72rem;color:var(--clr-text-subtle);margin-top:3px">
+                    Currently linked &amp; in use
+                  </div>
+                </div>
+    
+                <!-- Inactive / Unlinked -->
+                <div style="background:rgba(240,79,89,0.06);
+                            border:1px solid rgba(240,79,89,0.25);
+                            border-radius:var(--radius-md);padding:18px 20px;text-align:center">
+                  <div style="font-size:2rem;font-weight:800;color:var(--clr-error);
+                              font-family:var(--font-display);line-height:1">
+                    {{ inactiveAccounts }}
+                  </div>
+                  <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;
+                              letter-spacing:0.07em;color:var(--clr-error);margin-top:6px">
+                    Inactive
+                  </div>
+                  <div style="font-size:0.72rem;color:var(--clr-text-subtle);margin-top:3px">
+                    Soft-deleted / unlinked
+                  </div>
+                </div>
+    
+              </div>
+    
+              <!-- Utilisation bar when data is available -->
+              <div *ngIf="!isAccountCountLoading && !accountCountError && totalAccounts > 0">
+                <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;
+                            letter-spacing:0.07em;color:var(--clr-text-subtle);margin-bottom:8px">
+                  Active Utilisation
+                </div>
+                <div class="util-bar-track">
+                  <div class="util-bar-fill"
+                       [style.width]="(activeAccounts / totalAccounts * 100) + '%'"
+                       [style.background]="activeAccounts / totalAccounts >= 0.8
+                         ? 'var(--clr-success)'
+                         : activeAccounts / totalAccounts >= 0.5
+                           ? 'var(--clr-warning)'
+                           : 'var(--clr-error)'">
+                  </div>
+                </div>
+                <div class="util-labels">
+                  <span>0%</span>
+                  <span style="font-weight:600"
+                        [style.color]="activeAccounts / totalAccounts >= 0.8
+                          ? 'var(--clr-success)'
+                          : 'var(--clr-warning)'">
+                    {{ (activeAccounts / totalAccounts * 100).toFixed(0) }}% accounts active
+                  </span>
+                  <span>100%</span>
+                </div>
+              </div>
+    
+            </div>
+            <!-- /account summary card -->
     
             <div class="chart-card">
               <div class="chart-card-title">📋 Quick Navigation</div>
@@ -375,16 +517,20 @@
           <!-- ═══════════════════════════════════════════════
                PLACEHOLDER PAGES — Admin menus
                ═══════════════════════════════════════════════ -->
+          <!-- Category Management page (real component) -->
+          <app-admin-category *ngIf="activePage === 'category-management'">
+          </app-admin-category>
+    
           <div *ngIf="activePage === 'log-management'" class="placeholder-page">
             <div class="placeholder-icon">📋</div>
             <h2 class="placeholder-title">Log Management</h2>
             <p class="placeholder-text">Audit trail for all platform events — logins, transactions, deletions.</p>
           </div>
     
-          <div *ngIf="activePage === 'category-management'" class="placeholder-page">
-            <div class="placeholder-icon">🏷️</div>
-            <h2 class="placeholder-title">Category Management</h2>
-            <p class="placeholder-text">Add, edit, and delete Income/Expense categories used across the platform.</p>
+          <div *ngIf="activePage === 'default-budget'" class="placeholder-page">
+            <div class="placeholder-icon">💰</div>
+            <h2 class="placeholder-title">Default Budget</h2>
+            <p class="placeholder-text">Manage the default budget templates applied to new accounts.</p>
           </div>
     
           <div *ngIf="activePage === 'user-management'" class="placeholder-page">
